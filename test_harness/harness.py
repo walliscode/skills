@@ -1,0 +1,75 @@
+import json
+import re
+import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
+
+import yaml
+
+ARM = "with"
+
+
+def load_cases(skill_dir):
+    path = skill_dir / "evals" / "evals.yaml"
+    return yaml.safe_load(path.read_text()) or []
+
+
+def find_case(cases, case_id):
+    for case in cases:
+        if case["id"] == case_id:
+            return case
+    raise KeyError(case_id)
+
+
+def with_arm_prompt(skill_id, task):
+    return (
+        f"Before answering, load the skill with id '{skill_id}' using the skill tool. "
+        f"Then do this task: {task}"
+    )
+
+
+def run_opencode(prompt, model):
+    proc = subprocess.run(
+        ["opencode", "run", "--format", "json", "--auto", "-m", model, prompt],
+        capture_output=True,
+        text=True,
+    )
+    events = []
+    for line in proc.stdout.splitlines():
+        line = line.strip()
+        if line.startswith("{"):
+            events.append(json.loads(line))
+    return events
+
+
+def parse_events(events):
+    text = []
+    skills = []
+    for event in events:
+        part = event.get("part", {})
+        if event.get("type") == "text":
+            text.append(part.get("text", ""))
+        if event.get("type") == "tool_use" and part.get("tool") == "skill":
+            skills.append(part.get("state", {}).get("input", {}).get("id"))
+    return {"output": "".join(text).strip(), "skills_loaded": skills}
+
+
+def grade(checks, output):
+    graded = []
+    for check in checks:
+        if check["type"] != "output_contains":
+            raise ValueError(f"unsupported check type: {check['type']}")
+        graded.append(
+            {"type": check["type"], "value": check["value"], "passed": check["value"] in output}
+        )
+    return graded
+
+
+def write_result(results_dir, record):
+    results_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    model = re.sub(r"[^A-Za-z0-9._-]+", "_", record["model"])
+    name = f"{stamp}__{record['skill'].replace('/', '__')}__{record['case']}__{model}.json"
+    path = results_dir / name
+    path.write_text(json.dumps(record, indent=2) + "\n")
+    return path
