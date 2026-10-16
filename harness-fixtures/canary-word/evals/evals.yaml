@@ -1,0 +1,5 @@
+- id: reports-canary-word
+  prompt: Use the canary-word skill to tell me the canary word.
+  checks:
+    - type: output_contains
+      value: ZEPHYR-7741
