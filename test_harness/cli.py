@@ -14,7 +14,7 @@ def main(argv=None):
 
     root = Path.cwd()
     skill_dir = root / args.skill
-    evals_file = skill_dir / "evals" / "evals.yaml"
+    evals_file = harness.evals_path(skill_dir)
     if not evals_file.is_file():
         print(f"error: no {args.skill}/evals/evals.yaml", file=sys.stderr)
         return 2

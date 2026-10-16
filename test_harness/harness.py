@@ -9,8 +9,13 @@ import yaml
 ARM = "with"
 
 
+def evals_path(skill_dir):
+    # The one place that knows where a skill's eval cases live.
+    return skill_dir / "evals" / "evals.yaml"
+
+
 def load_cases(skill_dir):
-    path = skill_dir / "evals" / "evals.yaml"
+    path = evals_path(skill_dir)
     return yaml.safe_load(path.read_text()) or []
 
 
