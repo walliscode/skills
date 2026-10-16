@@ -1,3 +1,7 @@
+"""@file harness.py
+@brief Core logic for the skill eval harness: load cases, run opencode, grade, and store results.
+"""
+
 import json
 import re
 import subprocess
@@ -8,16 +12,34 @@ import yaml
 
 
 def evals_path(skill_dir):
-    # The one place that knows where a skill's eval cases live.
+    """@brief Return the path to a skill's eval cases file.
+
+    The one place that knows where a skill's eval cases live.
+
+    @param skill_dir Path to the skill directory, e.g. `engineering/tdd`.
+    @return Path to `<skill_dir>/evals/evals.yaml`.
+    """
     return skill_dir / "evals" / "evals.yaml"
 
 
 def load_cases(skill_dir):
+    """@brief Load the list of eval cases for a skill.
+
+    @param skill_dir Path to the skill directory.
+    @return The parsed YAML list of cases, or an empty list if the file is empty.
+    """
     path = evals_path(skill_dir)
     return yaml.safe_load(path.read_text()) or []
 
 
 def find_case(cases, case_id):
+    """@brief Find a case by its `id` field.
+
+    @param cases List of case dicts as returned by load_cases().
+    @param case_id The `id` to look for.
+    @return The matching case dict.
+    @throws KeyError If no case has that id.
+    """
     for case in cases:
         if case["id"] == case_id:
             return case
@@ -25,17 +47,25 @@ def find_case(cases, case_id):
 
 
 class OpencodeError(Exception):
-    pass
+    """@brief Raised when the opencode process fails or produces no usable output."""
 
 
 def run_opencode(prompt, model):
+    """@brief Run one prompt through `opencode run` and return its JSONL events.
+
+    A failed opencode process says nothing about the skill, so it is raised
+    as an error rather than recorded as a graded FAIL.
+
+    @param prompt The prompt text sent to opencode.
+    @param model The `provider/model` string passed to `opencode -m`.
+    @return List of decoded JSON event dicts from stdout, in order.
+    @throws OpencodeError If opencode exits non-zero or prints no JSON events.
+    """
     proc = subprocess.run(
         ["opencode", "run", "--format", "json", "--auto", "-m", model, prompt],
         capture_output=True,
         text=True,
     )
-    # A failed opencode process says nothing about the skill, so it must not be
-    # recorded as a graded FAIL.
     if proc.returncode != 0:
         raise OpencodeError(f"opencode exited {proc.returncode}: {proc.stderr.strip()}")
     events = []
@@ -49,6 +79,12 @@ def run_opencode(prompt, model):
 
 
 def parse_events(events):
+    """@brief Extract the final text and the skills loaded from opencode events.
+
+    @param events List of event dicts from run_opencode().
+    @return Dict with `output` (concatenated text parts, stripped) and
+            `skills_loaded` (list of skill ids from `skill` tool_use events, in order).
+    """
     text = []
     skills = []
     for event in events:
@@ -61,6 +97,13 @@ def parse_events(events):
 
 
 def grade(checks, output):
+    """@brief Grade a run's output against a list of deterministic checks.
+
+    @param checks List of check dicts, each with `type` and `value`.
+    @param output The output text to grade.
+    @return List of graded check dicts with `type`, `value` and `passed`.
+    @throws ValueError If a check has an unsupported `type`.
+    """
     graded = []
     for check in checks:
         if check["type"] != "output_contains":
@@ -72,8 +115,17 @@ def grade(checks, output):
 
 
 def build_record(skill, case_id, model, case, events):
-    # Turns one opencode run into the stored record: parse the events,
-    # grade them against the case's checks, and bundle the result.
+    """@brief Turn one opencode run into the stored result record.
+
+    Parses the events, grades them against the case's checks, and bundles the result.
+
+    @param skill The skill path, e.g. `engineering/tdd`.
+    @param case_id The case id.
+    @param model The model string used for the run.
+    @param case The case dict, including `prompt` and `checks`.
+    @param events List of event dicts from run_opencode().
+    @return The result record dict, ready for write_result().
+    """
     parsed = parse_events(events)
     checks = grade(case.get("checks", []), parsed["output"])
     return {
@@ -89,6 +141,15 @@ def build_record(skill, case_id, model, case, events):
 
 
 def write_result(results_dir, record):
+    """@brief Write one result record as a JSON file.
+
+    Creates the directory if needed. The filename includes a UTC timestamp,
+    the skill, the case and the model, so each run gets its own file.
+
+    @param results_dir Directory to write into.
+    @param record Result dict from build_record().
+    @return Path to the written file.
+    """
     results_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     model = re.sub(r"[^A-Za-z0-9._-]+", "_", record["model"])

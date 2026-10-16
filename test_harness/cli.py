@@ -1,3 +1,7 @@
+"""@file cli.py
+@brief Command-line entry point: `python -m test_harness <module>/<skill> --case <id> -m <model>`.
+"""
+
 import argparse
 import sys
 from pathlib import Path
@@ -6,6 +10,14 @@ from test_harness import harness
 
 
 def main(argv=None):
+    """@brief Run one eval case for one skill and report the result.
+
+    Exit codes: 0 if all checks pass, 1 if any fail, 2 for usage or opencode errors.
+    The result is written under `test_harness/results/` in the current directory.
+
+    @param argv Argument list, or None to use sys.argv.
+    @return The process exit code.
+    """
     parser = argparse.ArgumentParser(prog="test_harness")
     parser.add_argument("skill", help="<module>/<skill>, e.g. engineering/tdd")
     parser.add_argument("--case", required=True, help="case id from the skill's evals/evals.yaml")
