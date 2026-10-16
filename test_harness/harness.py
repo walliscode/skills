@@ -21,13 +21,6 @@ def find_case(cases, case_id):
     raise KeyError(case_id)
 
 
-def with_arm_prompt(skill_id, task):
-    return (
-        f"Before answering, load the skill with id '{skill_id}' using the skill tool. "
-        f"Then do this task: {task}"
-    )
-
-
 def run_opencode(prompt, model):
     proc = subprocess.run(
         ["opencode", "run", "--format", "json", "--auto", "-m", model, prompt],

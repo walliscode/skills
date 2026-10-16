@@ -128,8 +128,7 @@ def test_invokes_opencode_with_json_auto_and_model(project):
     assert proc.returncode == 0, proc.stderr
     args = args_file.read_text().split("\n")
     assert args[:6] == ["run", "--format", "json", "--auto", "-m", "provider/model-x"]
-    assert "greeter" in args[-1]
-    assert "Greet Ada." in args[-1]
+    assert args[-1] == "Greet Ada."
 
 
 def test_records_skills_loaded_from_tool_use_events(project):

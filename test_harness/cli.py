@@ -25,8 +25,9 @@ def main(argv=None):
         print(f"error: no case '{args.case}' in {args.skill}/evals/evals.yaml", file=sys.stderr)
         return 2
 
-    skill_id = skill_dir.name
-    prompt = harness.with_arm_prompt(skill_id, case["prompt"])
+    # Sent verbatim. The "with" arm runs normally (#12), so whether the skill
+    # gets loaded is up to the model and is recorded in skills_loaded.
+    prompt = case["prompt"]
     parsed = harness.parse_events(harness.run_opencode(prompt, args.model))
     checks = harness.grade(case.get("checks", []), parsed["output"])
     passed = all(check["passed"] for check in checks)
