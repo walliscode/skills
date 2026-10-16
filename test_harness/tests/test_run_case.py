@@ -60,7 +60,20 @@ def project(tmp_path):
     return tmp_path
 
 
-def run_harness(project, stdout, *args, exit_code=0):
+def run_harness(
+    project,
+    stdout,
+    *,
+    skill="engineering/greeter",
+    case="greets-ada",
+    model="provider/model-x",
+    exit_code=0,
+):
+    # Pass model=None to leave out -m, which is how the required-flag test runs.
+    args = [skill, "--case", case]
+    if model is not None:
+        args += ["-m", model]
+
     bin_dir = project / "bin"
     stdout_file = project / "stdout.jsonl"
     stdout_file.write_text(stdout)
@@ -92,9 +105,7 @@ def only_result(project):
 def test_passes_when_output_contains_value(project):
     stdout = jsonl(skill_load("greeter"), text("Hello Ada!"))
 
-    proc, _ = run_harness(
-        project, stdout, "engineering/greeter", "--case", "greets-ada", "-m", "provider/model-x"
-    )
+    proc, _ = run_harness(project, stdout)
 
     assert proc.returncode == 0, proc.stderr
     result = only_result(project)
@@ -110,9 +121,7 @@ def test_passes_when_output_contains_value(project):
 def test_fails_when_output_lacks_value(project):
     stdout = jsonl(text("Hello stranger"))
 
-    proc, _ = run_harness(
-        project, stdout, "engineering/greeter", "--case", "greets-ada", "-m", "provider/model-x"
-    )
+    proc, _ = run_harness(project, stdout)
 
     assert proc.returncode == 1
     result = only_result(project)
@@ -121,11 +130,7 @@ def test_fails_when_output_lacks_value(project):
 
 
 def test_invokes_opencode_with_json_auto_and_model(project):
-    stdout = jsonl(text("Ada"))
-
-    proc, args_file = run_harness(
-        project, stdout, "engineering/greeter", "--case", "greets-ada", "-m", "provider/model-x"
-    )
+    proc, args_file = run_harness(project, jsonl(text("Ada")))
 
     assert proc.returncode == 0, proc.stderr
     args = args_file.read_text().split("\n")
@@ -136,18 +141,14 @@ def test_invokes_opencode_with_json_auto_and_model(project):
 def test_records_skills_loaded_from_tool_use_events(project):
     stdout = jsonl(skill_load("greeter"), text("Ada"))
 
-    proc, _ = run_harness(
-        project, stdout, "engineering/greeter", "--case", "greets-ada", "-m", "provider/model-x"
-    )
+    proc, _ = run_harness(project, stdout)
 
     assert proc.returncode == 0, proc.stderr
     assert only_result(project)["skills_loaded"] == ["greeter"]
 
 
 def test_requires_model_flag(project):
-    proc, args_file = run_harness(
-        project, jsonl(text("Ada")), "engineering/greeter", "--case", "greets-ada"
-    )
+    proc, args_file = run_harness(project, jsonl(text("Ada")), model=None)
 
     assert proc.returncode != 0
     assert not args_file.exists()
@@ -155,16 +156,7 @@ def test_requires_model_flag(project):
 
 
 def test_opencode_crash_is_an_error_not_a_fail(project):
-    proc, _ = run_harness(
-        project,
-        jsonl(text("Ada")),
-        "engineering/greeter",
-        "--case",
-        "greets-ada",
-        "-m",
-        "provider/model-x",
-        exit_code=1,
-    )
+    proc, _ = run_harness(project, jsonl(text("Ada")), exit_code=1)
 
     assert proc.returncode == 2
     assert "opencode exited 1" in proc.stderr
@@ -172,18 +164,14 @@ def test_opencode_crash_is_an_error_not_a_fail(project):
 
 
 def test_opencode_without_json_output_is_an_error(project):
-    proc, _ = run_harness(
-        project, "", "engineering/greeter", "--case", "greets-ada", "-m", "provider/model-x"
-    )
+    proc, _ = run_harness(project, "")
 
     assert proc.returncode == 2
     assert not (project / "test_harness" / "results").exists()
 
 
 def test_unknown_case_is_an_error(project):
-    proc, args_file = run_harness(
-        project, jsonl(text("Ada")), "engineering/greeter", "--case", "nope", "-m", "provider/model-x"
-    )
+    proc, args_file = run_harness(project, jsonl(text("Ada")), case="nope")
 
     assert proc.returncode != 0
     assert not args_file.exists()
