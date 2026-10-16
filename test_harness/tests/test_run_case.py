@@ -17,6 +17,7 @@ with open(os.environ["FAKE_OPENCODE_ARGS"], "w") as f:
     f.write("\\n".join(sys.argv[1:]))
 with open(os.environ["FAKE_OPENCODE_STDOUT"]) as f:
     sys.stdout.write(f.read())
+sys.exit(int(os.environ.get("FAKE_OPENCODE_EXIT", "0")))
 """
 
 
@@ -59,7 +60,7 @@ def project(tmp_path):
     return tmp_path
 
 
-def run_harness(project, stdout, *args):
+def run_harness(project, stdout, *args, exit_code=0):
     bin_dir = project / "bin"
     stdout_file = project / "stdout.jsonl"
     stdout_file.write_text(stdout)
@@ -70,6 +71,7 @@ def run_harness(project, stdout, *args):
         "PYTHONPATH": str(REPO_ROOT),
         "FAKE_OPENCODE_STDOUT": str(stdout_file),
         "FAKE_OPENCODE_ARGS": str(args_file),
+        "FAKE_OPENCODE_EXIT": str(exit_code),
     }
     proc = subprocess.run(
         [sys.executable, "-m", "test_harness", *args],
@@ -149,6 +151,32 @@ def test_requires_model_flag(project):
 
     assert proc.returncode != 0
     assert not args_file.exists()
+    assert not (project / "test_harness" / "results").exists()
+
+
+def test_opencode_crash_is_an_error_not_a_fail(project):
+    proc, _ = run_harness(
+        project,
+        jsonl(text("Ada")),
+        "engineering/greeter",
+        "--case",
+        "greets-ada",
+        "-m",
+        "provider/model-x",
+        exit_code=1,
+    )
+
+    assert proc.returncode == 2
+    assert "opencode exited 1" in proc.stderr
+    assert not (project / "test_harness" / "results").exists()
+
+
+def test_opencode_without_json_output_is_an_error(project):
+    proc, _ = run_harness(
+        project, "", "engineering/greeter", "--case", "greets-ada", "-m", "provider/model-x"
+    )
+
+    assert proc.returncode == 2
     assert not (project / "test_harness" / "results").exists()
 
 

@@ -28,7 +28,12 @@ def main(argv=None):
     # Sent verbatim. The "with" arm runs normally (#12), so whether the skill
     # gets loaded is up to the model and is recorded in skills_loaded.
     prompt = case["prompt"]
-    parsed = harness.parse_events(harness.run_opencode(prompt, args.model))
+    try:
+        events = harness.run_opencode(prompt, args.model)
+    except harness.OpencodeError as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 2
+    parsed = harness.parse_events(events)
     checks = harness.grade(case.get("checks", []), parsed["output"])
     passed = all(check["passed"] for check in checks)
 

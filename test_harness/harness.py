@@ -21,17 +21,27 @@ def find_case(cases, case_id):
     raise KeyError(case_id)
 
 
+class OpencodeError(Exception):
+    pass
+
+
 def run_opencode(prompt, model):
     proc = subprocess.run(
         ["opencode", "run", "--format", "json", "--auto", "-m", model, prompt],
         capture_output=True,
         text=True,
     )
+    # A failed opencode process says nothing about the skill, so it must not be
+    # recorded as a graded FAIL.
+    if proc.returncode != 0:
+        raise OpencodeError(f"opencode exited {proc.returncode}: {proc.stderr.strip()}")
     events = []
     for line in proc.stdout.splitlines():
         line = line.strip()
         if line.startswith("{"):
             events.append(json.loads(line))
+    if not events:
+        raise OpencodeError("opencode produced no JSON events")
     return events
 
 
