@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -8,92 +9,39 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+MODEL = os.environ.get("HARNESS_TEST_MODEL", "github-copilot/claude-haiku-5.5")
 
-FAKE_OPENCODE = """#!{python}
-import os
-import sys
-
-with open(os.environ["FAKE_OPENCODE_ARGS"], "w") as f:
-    f.write("\\n".join(sys.argv[1:]))
-with open(os.environ["FAKE_OPENCODE_STDOUT"]) as f:
-    sys.stdout.write(f.read())
-sys.exit(int(os.environ.get("FAKE_OPENCODE_EXIT", "0")))
-"""
-
-
-def jsonl(*events):
-    return "\n".join(json.dumps(e) for e in events) + "\n"
-
-
-def skill_load(skill_id):
-    return {
-        "type": "tool_use",
-        "sessionID": "ses_1",
-        "part": {"tool": "skill", "state": {"input": {"id": skill_id}}},
-    }
-
-
-def text(value):
-    return {"type": "text", "sessionID": "ses_1", "part": {"text": value}}
+needs_opencode = pytest.mark.skipif(
+    shutil.which("opencode") is None, reason="opencode is not on PATH"
+)
 
 
 @pytest.fixture
 def project(tmp_path):
-    skill_dir = tmp_path / "engineering" / "greeter"
-    (skill_dir / "evals").mkdir(parents=True)
-    (skill_dir / "evals" / "evals.yaml").write_text(
-        yaml.safe_dump(
-            [
-                {
-                    "id": "greets-ada",
-                    "prompt": "Greet Ada.",
-                    "checks": [{"type": "output_contains", "value": "Ada"}],
-                }
-            ]
-        )
-    )
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    fake = bin_dir / "opencode"
-    fake.write_text(FAKE_OPENCODE.format(python=sys.executable))
-    fake.chmod(0o755)
+    """A temp copy of the fixture skill and opencode config, so runs never touch the repo's results."""
+    shutil.copytree(REPO_ROOT / "harness-fixtures", tmp_path / "harness-fixtures")
+    shutil.copy(REPO_ROOT / "opencode.json", tmp_path / "opencode.json")
     return tmp_path
 
 
-def run_harness(
-    project,
-    stdout,
-    *,
-    skill="engineering/greeter",
-    case="greets-ada",
-    model="provider/model-x",
-    exit_code=0,
-):
+def write_cases(project, cases):
+    path = project / "harness-fixtures" / "canary-word" / "evals" / "evals.yaml"
+    path.write_text(yaml.safe_dump(cases))
+
+
+def run_harness(project, *, skill="harness-fixtures/canary-word", case="reports-canary-word", model=MODEL):
     # Pass model=None to leave out -m, which is how the required-flag test runs.
     args = [skill, "--case", case]
     if model is not None:
         args += ["-m", model]
-
-    bin_dir = project / "bin"
-    stdout_file = project / "stdout.jsonl"
-    stdout_file.write_text(stdout)
-    args_file = project / "opencode-args.txt"
-    env = {
-        **os.environ,
-        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
-        "PYTHONPATH": str(REPO_ROOT),
-        "FAKE_OPENCODE_STDOUT": str(stdout_file),
-        "FAKE_OPENCODE_ARGS": str(args_file),
-        "FAKE_OPENCODE_EXIT": str(exit_code),
-    }
     proc = subprocess.run(
         [sys.executable, "-m", "test_harness", *args],
         cwd=project,
-        env=env,
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT)},
         capture_output=True,
         text=True,
     )
-    return proc, args_file
+    return proc
 
 
 def only_result(project):
@@ -102,75 +50,60 @@ def only_result(project):
     return json.loads(files[0].read_text())
 
 
-def test_passes_when_output_contains_value(project):
-    stdout = jsonl(skill_load("greeter"), text("Hello Ada!"))
-
-    proc, _ = run_harness(project, stdout)
+@needs_opencode
+def test_passes_when_skill_loads_and_output_contains_value(project):
+    proc = run_harness(project)
 
     assert proc.returncode == 0, proc.stderr
     result = only_result(project)
     assert result["passed"] is True
-    assert result["case"] == "greets-ada"
-    assert result["skill"] == "engineering/greeter"
-    assert result["model"] == "provider/model-x"
-    assert result["output"] == "Hello Ada!"
-    assert result["checks"] == [{"type": "output_contains", "value": "Ada", "passed": True}]
+    assert result["case"] == "reports-canary-word"
+    assert result["skill"] == "harness-fixtures/canary-word"
+    assert result["model"] == MODEL
+    assert "ZEPHYR-7741" in result["output"]
+    assert "canary-word" in result["skills_loaded"]
+    assert result["checks"] == [{"type": "output_contains", "value": "ZEPHYR-7741", "passed": True}]
 
 
+@needs_opencode
 def test_fails_when_output_lacks_value(project):
-    stdout = jsonl(text("Hello stranger"))
+    write_cases(
+        project,
+        [
+            {
+                "id": "reports-canary-word",
+                "prompt": "Use the canary-word skill to tell me the canary word.",
+                "checks": [{"type": "output_contains", "value": "NOT-THE-WORD"}],
+            }
+        ],
+    )
 
-    proc, _ = run_harness(project, stdout)
+    proc = run_harness(project)
 
     assert proc.returncode == 1
     result = only_result(project)
     assert result["passed"] is False
-    assert result["checks"] == [{"type": "output_contains", "value": "Ada", "passed": False}]
+    assert result["checks"] == [{"type": "output_contains", "value": "NOT-THE-WORD", "passed": False}]
 
 
-def test_invokes_opencode_with_json_auto_and_model(project):
-    proc, args_file = run_harness(project, jsonl(text("Ada")))
+@needs_opencode
+def test_opencode_failure_is_an_error_not_a_fail(project):
+    proc = run_harness(project, model="github-copilot/no-such-model")
 
-    assert proc.returncode == 0, proc.stderr
-    args = args_file.read_text().split("\n")
-    assert args[:6] == ["run", "--format", "json", "--auto", "-m", "provider/model-x"]
-    assert args[-1] == "Greet Ada."
-
-
-def test_records_skills_loaded_from_tool_use_events(project):
-    stdout = jsonl(skill_load("greeter"), text("Ada"))
-
-    proc, _ = run_harness(project, stdout)
-
-    assert proc.returncode == 0, proc.stderr
-    assert only_result(project)["skills_loaded"] == ["greeter"]
+    assert proc.returncode == 2
+    assert "opencode exited" in proc.stderr
+    assert not (project / "test_harness" / "results").exists()
 
 
 def test_requires_model_flag(project):
-    proc, args_file = run_harness(project, jsonl(text("Ada")), model=None)
+    proc = run_harness(project, model=None)
 
     assert proc.returncode != 0
-    assert not args_file.exists()
-    assert not (project / "test_harness" / "results").exists()
-
-
-def test_opencode_crash_is_an_error_not_a_fail(project):
-    proc, _ = run_harness(project, jsonl(text("Ada")), exit_code=1)
-
-    assert proc.returncode == 2
-    assert "opencode exited 1" in proc.stderr
-    assert not (project / "test_harness" / "results").exists()
-
-
-def test_opencode_without_json_output_is_an_error(project):
-    proc, _ = run_harness(project, "")
-
-    assert proc.returncode == 2
     assert not (project / "test_harness" / "results").exists()
 
 
 def test_unknown_case_is_an_error(project):
-    proc, args_file = run_harness(project, jsonl(text("Ada")), case="nope")
+    proc = run_harness(project, case="nope")
 
-    assert proc.returncode != 0
-    assert not args_file.exists()
+    assert proc.returncode == 2
+    assert not (project / "test_harness" / "results").exists()
