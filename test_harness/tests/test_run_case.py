@@ -88,6 +88,18 @@ def test_fails_when_output_lacks_value(project):
 
 @needs_opencode
 def test_opencode_failure_is_an_error_not_a_fail(project):
+    write_cases(
+        project,
+        [
+            {
+                "id": "reports-canary-word",
+                "prompt": "Use the canary-word skill to tell me the canary word.",
+                "models": ["github-copilot/no-such-model"],
+                "checks": [{"type": "output_contains", "value": "ZEPHYR-7741"}],
+            }
+        ],
+    )
+
     proc = run_harness(project, model="github-copilot/no-such-model")
 
     assert proc.returncode == 2
