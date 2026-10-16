@@ -112,7 +112,6 @@ def test_passes_when_output_contains_value(project):
     assert result["passed"] is True
     assert result["case"] == "greets-ada"
     assert result["skill"] == "engineering/greeter"
-    assert result["arm"] == "with"
     assert result["model"] == "provider/model-x"
     assert result["output"] == "Hello Ada!"
     assert result["checks"] == [{"type": "output_contains", "value": "Ada", "passed": True}]

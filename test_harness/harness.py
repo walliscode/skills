@@ -6,8 +6,6 @@ from pathlib import Path
 
 import yaml
 
-ARM = "with"
-
 
 def evals_path(skill_dir):
     # The one place that knows where a skill's eval cases live.

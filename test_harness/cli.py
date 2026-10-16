@@ -41,7 +41,6 @@ def main(argv=None):
         "skill": args.skill,
         "case": args.case,
         "model": args.model,
-        "arm": harness.ARM,
         "prompt": prompt,
         "output": parsed["output"],
         "skills_loaded": parsed["skills_loaded"],
