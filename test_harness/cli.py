@@ -21,7 +21,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="test_harness")
     parser.add_argument("skill", help="<module>/<skill>, e.g. engineering/tdd")
     parser.add_argument("--case", required=True, help="case id from the skill's evals/evals.yaml")
-    parser.add_argument("-m", "--model", required=True, help="provider/model passed to opencode -m")
+    parser.add_argument(
+        "-m",
+        "--model",
+        required=True,
+        help="provider/model passed to opencode -m; must be in the config list or the case's models",
+    )
     args = parser.parse_args(argv)
 
     root = Path.cwd()
@@ -35,6 +40,11 @@ def main(argv=None):
         case = harness.find_case(harness.load_cases(skill_dir), args.case)
     except KeyError:
         print(f"error: no case '{args.case}' in {args.skill}/evals/evals.yaml", file=sys.stderr)
+        return 2
+
+    models = harness.allowed_models(case, harness.load_config_models())
+    if args.model not in models:
+        print(f"error: model '{args.model}' must be one of: {', '.join(models)}", file=sys.stderr)
         return 2
 
     # Sent verbatim. The "with" arm runs normally (#12), so whether the skill

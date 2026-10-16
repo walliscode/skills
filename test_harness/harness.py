@@ -10,6 +10,29 @@ from pathlib import Path
 
 import yaml
 
+CONFIG_PATH = Path(__file__).with_name("config.yaml")
+
+
+def load_config_models(path=CONFIG_PATH):
+    """@brief Read the list of models the harness runs against from its config file.
+
+    @param path Path to the harness config YAML.
+    @return The list of `provider/model` strings under `models`.
+    """
+    return yaml.safe_load(path.read_text())["models"]
+
+
+def allowed_models(case, config_models):
+    """@brief Return the models a case may run with.
+
+    A case's own `models` field overrides the config list.
+
+    @param case The case dict.
+    @param config_models The models from the harness config.
+    @return The list of allowed `provider/model` strings for the case.
+    """
+    return case["models"] if "models" in case else config_models
+
 
 def evals_path(skill_dir):
     """@brief Return the path to a skill's eval cases file.
