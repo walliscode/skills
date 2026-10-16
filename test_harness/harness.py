@@ -71,6 +71,23 @@ def grade(checks, output):
     return graded
 
 
+def build_record(skill, case_id, model, case, events):
+    # Turns one opencode run into the stored record: parse the events,
+    # grade them against the case's checks, and bundle the result.
+    parsed = parse_events(events)
+    checks = grade(case.get("checks", []), parsed["output"])
+    return {
+        "skill": skill,
+        "case": case_id,
+        "model": model,
+        "prompt": case["prompt"],
+        "output": parsed["output"],
+        "skills_loaded": parsed["skills_loaded"],
+        "checks": checks,
+        "passed": all(check["passed"] for check in checks),
+    }
+
+
 def write_result(results_dir, record):
     results_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")

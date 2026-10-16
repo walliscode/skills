@@ -27,28 +27,16 @@ def main(argv=None):
 
     # Sent verbatim. The "with" arm runs normally (#12), so whether the skill
     # gets loaded is up to the model and is recorded in skills_loaded.
-    prompt = case["prompt"]
     try:
-        events = harness.run_opencode(prompt, args.model)
+        events = harness.run_opencode(case["prompt"], args.model)
     except harness.OpencodeError as err:
         print(f"error: {err}", file=sys.stderr)
         return 2
-    parsed = harness.parse_events(events)
-    checks = harness.grade(case.get("checks", []), parsed["output"])
-    passed = all(check["passed"] for check in checks)
 
-    record = {
-        "skill": args.skill,
-        "case": args.case,
-        "model": args.model,
-        "prompt": prompt,
-        "output": parsed["output"],
-        "skills_loaded": parsed["skills_loaded"],
-        "checks": checks,
-        "passed": passed,
-    }
+    record = harness.build_record(args.skill, args.case, args.model, case, events)
     path = harness.write_result(root / "test_harness" / "results", record)
 
+    passed = record["passed"]
     print(f"{'PASS' if passed else 'FAIL'} {args.skill} {args.case} ({args.model})")
     print(f"result: {path}")
     return 0 if passed else 1
