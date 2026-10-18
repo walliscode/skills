@@ -10,6 +10,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODEL = os.environ.get("HARNESS_TEST_MODEL", "github-copilot/claude-haiku-5.5")
+CONFIG_RUNS = yaml.safe_load((REPO_ROOT / "test_harness" / "config.yaml").read_text())["runs"]
 
 needs_opencode = pytest.mark.skipif(
     shutil.which("opencode") is None, reason="opencode is not on PATH"
@@ -44,9 +45,9 @@ def run_harness(project, *, skill="harness-fixtures/canary-word", case="reports-
     return proc
 
 
-def only_result(project):
-    files = list((project / "test_harness" / "results").glob("*.json"))
-    assert len(files) == 1, files
+def first_result(project):
+    files = sorted((project / "test_harness" / "results").glob("*.json"))
+    assert len(files) == CONFIG_RUNS, files
     return json.loads(files[0].read_text())
 
 
@@ -55,7 +56,7 @@ def test_passes_when_skill_loads_and_output_contains_value(project):
     proc = run_harness(project)
 
     assert proc.returncode == 0, proc.stderr
-    result = only_result(project)
+    result = first_result(project)
     assert result["passed"] is True
     assert result["case"] == "reports-canary-word"
     assert result["skill"] == "harness-fixtures/canary-word"
@@ -81,7 +82,7 @@ def test_fails_when_output_lacks_value(project):
     proc = run_harness(project)
 
     assert proc.returncode == 1
-    result = only_result(project)
+    result = first_result(project)
     assert result["passed"] is False
     assert result["checks"] == [{"type": "output_contains", "value": "NOT-THE-WORD", "passed": False}]
 
