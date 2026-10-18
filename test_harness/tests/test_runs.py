@@ -59,10 +59,24 @@ def test_writes_one_result_per_configured_run(project):
 
     assert proc.returncode == 0, proc.stderr
     runs = results(project)
-    assert len(runs) == CONFIG_RUNS
+    assert len(runs) == 2 * CONFIG_RUNS
     assert all(run["case"] == "reports-canary-word" for run in runs)
     assert all(run["model"] == MODEL for run in runs)
-    assert all(run["passed"] for run in runs)
+    with_runs = [run for run in runs if run["arm"] == "with"]
+    assert len(with_runs) == CONFIG_RUNS
+    assert all(run["passed"] for run in with_runs)
+
+
+@needs_opencode
+def test_with_arm_loads_skill_and_without_arm_does_not(project):
+    proc = run_harness(project)
+
+    assert proc.returncode == 0, proc.stderr
+    runs = results(project)
+    with_runs = [run for run in runs if run["arm"] == "with"]
+    without_runs = [run for run in runs if run["arm"] == "without"]
+    assert len(with_runs) == CONFIG_RUNS and all(run["skill_loaded"] for run in with_runs)
+    assert len(without_runs) == CONFIG_RUNS and not any(run["skill_loaded"] for run in without_runs)
 
 
 @needs_opencode
@@ -82,8 +96,8 @@ def test_fails_when_any_run_fails(project):
 
     assert proc.returncode == 1
     runs = results(project)
-    assert len(runs) == CONFIG_RUNS
-    assert not any(run["passed"] for run in runs)
+    assert len(runs) == 2 * CONFIG_RUNS
+    assert not any(run["passed"] for run in runs if run["arm"] == "with")
 
 
 def test_each_run_gets_a_fresh_copy_of_case_fixtures(project):

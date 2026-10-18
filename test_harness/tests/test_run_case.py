@@ -45,10 +45,11 @@ def run_harness(project, *, skill="harness-fixtures/canary-word", case="reports-
     return proc
 
 
-def first_result(project):
+def first_result(project, arm="with"):
     files = sorted((project / "test_harness" / "results").glob("*.json"))
-    assert len(files) == CONFIG_RUNS, files
-    return json.loads(files[0].read_text())
+    assert len(files) == 2 * CONFIG_RUNS, files
+    records = [json.loads(f.read_text()) for f in files]
+    return next(record for record in records if record["arm"] == arm)
 
 
 @needs_opencode

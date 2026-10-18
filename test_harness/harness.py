@@ -3,6 +3,7 @@
 """
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -24,17 +25,19 @@ def load_config(path=CONFIG_PATH):
     return yaml.safe_load(path.read_text())
 
 
-def make_workspace(root, skill, case_id, parent=None):
+def make_workspace(root, skill, case_id, parent=None, arm="with"):
     """@brief Build a fresh working directory for one run.
 
     Copies the case's fixtures from `<skill>/evals/fixtures/<case_id>/` if present, and
     writes the repo's `opencode.json` with its skill paths made absolute, so the skill
-    under test still loads from the temp directory.
+    under test still loads from the temp directory. The without arm also denies the
+    skill under test, so the model cannot load it.
 
     @param root Repo root that `opencode.json` and the skill paths are relative to.
     @param skill The skill path, e.g. `engineering/tdd`.
     @param case_id The case id.
     @param parent Directory to create the workspace in, or None for the system temp directory.
+    @param arm `with` to leave the skill available, `without` to deny it.
     @return Path to a new temporary directory the caller should remove.
     """
     workspace = Path(tempfile.mkdtemp(prefix="harness-run-", dir=parent))
@@ -45,6 +48,9 @@ def make_workspace(root, skill, case_id, parent=None):
     if "skills" in config:
         # Skill paths are relative to the repo root, but the workspace is a temp dir.
         config["skills"] = [str((root / entry).resolve()) for entry in config["skills"]]
+    if arm == "without":
+        skill_id = skill.rsplit("/", 1)[-1]
+        config["permission"] = {"skill": {skill_id: "deny"}}
     (workspace / "opencode.json").write_text(json.dumps(config, indent=2) + "\n")
     return workspace
 
@@ -112,11 +118,13 @@ def run_opencode(prompt, model, cwd=None):
     @return List of decoded JSON event dicts from stdout, in order.
     @throws OpencodeError If opencode exits non-zero or prints no JSON events.
     """
+    # opencode finds its project from PWD, which subprocess's cwd does not update.
     proc = subprocess.run(
         ["opencode", "run", "--format", "json", "--auto", "-m", model, prompt],
         capture_output=True,
         text=True,
         cwd=cwd,
+        env={**os.environ, "PWD": str(cwd)} if cwd is not None else None,
     )
     if proc.returncode != 0:
         raise OpencodeError(f"opencode exited {proc.returncode}: {proc.stderr.strip()}")
@@ -133,9 +141,12 @@ def run_opencode(prompt, model, cwd=None):
 def parse_events(events):
     """@brief Extract the final text and the skills loaded from opencode events.
 
+    A skill counts as loaded only when its `skill` tool_use completed; denied or
+    failed calls are not loads.
+
     @param events List of event dicts from run_opencode().
     @return Dict with `output` (concatenated text parts, stripped) and
-            `skills_loaded` (list of skill ids from `skill` tool_use events, in order).
+            `skills_loaded` (list of skill ids from completed `skill` tool_use events, in order).
     """
     text = []
     skills = []
@@ -144,7 +155,9 @@ def parse_events(events):
         if event.get("type") == "text":
             text.append(part.get("text", ""))
         if event.get("type") == "tool_use" and part.get("tool") == "skill":
-            skills.append(part.get("state", {}).get("input", {}).get("id"))
+            state = part.get("state", {})
+            if state.get("status") == "completed":
+                skills.append(state.get("input", {}).get("id"))
     return {"output": "".join(text).strip(), "skills_loaded": skills}
 
 
@@ -166,7 +179,7 @@ def grade(checks, output):
     return graded
 
 
-def build_record(skill, case_id, model, case, events):
+def build_record(skill, case_id, model, case, events, arm="with"):
     """@brief Turn one opencode run into the stored result record.
 
     Parses the events, grades them against the case's checks, and bundles the result.
@@ -176,6 +189,7 @@ def build_record(skill, case_id, model, case, events):
     @param model The model string used for the run.
     @param case The case dict, including `prompt` and `checks`.
     @param events List of event dicts from run_opencode().
+    @param arm `with` or `without`, the arm the run was made under.
     @return The result record dict, ready for write_result().
     """
     parsed = parse_events(events)
@@ -185,6 +199,7 @@ def build_record(skill, case_id, model, case, events):
         "skill": skill,
         "case": case_id,
         "model": model,
+        "arm": arm,
         "prompt": case["prompt"],
         "output": parsed["output"],
         "skills_loaded": parsed["skills_loaded"],
@@ -207,7 +222,7 @@ def write_result(results_dir, record):
     results_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     model = re.sub(r"[^A-Za-z0-9._-]+", "_", record["model"])
-    name = f"{stamp}__{record['skill'].replace('/', '__')}__{record['case']}__{model}.json"
+    name = f"{stamp}__{record['skill'].replace('/', '__')}__{record['case']}__{record['arm']}__{model}.json"
     path = results_dir / name
     path.write_text(json.dumps(record, indent=2) + "\n")
     return path
