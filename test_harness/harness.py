@@ -4,7 +4,9 @@
 
 import json
 import re
+import shutil
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,13 +15,38 @@ import yaml
 CONFIG_PATH = Path(__file__).with_name("config.yaml")
 
 
-def load_config_models(path=CONFIG_PATH):
-    """@brief Read the list of models the harness runs against from its config file.
+def load_config(path=CONFIG_PATH):
+    """@brief Read the harness config file.
 
     @param path Path to the harness config YAML.
-    @return The list of `provider/model` strings under `models`.
+    @return The parsed config dict, with `models` (list of `provider/model`) and `runs` (int).
     """
-    return yaml.safe_load(path.read_text())["models"]
+    return yaml.safe_load(path.read_text())
+
+
+def make_workspace(root, skill, case_id, parent=None):
+    """@brief Build a fresh working directory for one run.
+
+    Copies the case's fixtures from `<skill>/evals/fixtures/<case_id>/` if present, and
+    writes the repo's `opencode.json` with its skill paths made absolute, so the skill
+    under test still loads from the temp directory.
+
+    @param root Repo root that `opencode.json` and the skill paths are relative to.
+    @param skill The skill path, e.g. `engineering/tdd`.
+    @param case_id The case id.
+    @param parent Directory to create the workspace in, or None for the system temp directory.
+    @return Path to a new temporary directory the caller should remove.
+    """
+    workspace = Path(tempfile.mkdtemp(prefix="harness-run-", dir=parent))
+    fixtures = root / skill / "evals" / "fixtures" / case_id
+    if fixtures.is_dir():
+        shutil.copytree(fixtures, workspace, dirs_exist_ok=True)
+    config = json.loads((root / "opencode.json").read_text())
+    if "skills" in config:
+        # Skill paths are relative to the repo root, but the workspace is a temp dir.
+        config["skills"] = [str((root / entry).resolve()) for entry in config["skills"]]
+    (workspace / "opencode.json").write_text(json.dumps(config, indent=2) + "\n")
+    return workspace
 
 
 def allowed_models(case, config_models):
@@ -73,7 +100,7 @@ class OpencodeError(Exception):
     """@brief Raised when the opencode process fails or produces no usable output."""
 
 
-def run_opencode(prompt, model):
+def run_opencode(prompt, model, cwd=None):
     """@brief Run one prompt through `opencode run` and return its JSONL events.
 
     A failed opencode process says nothing about the skill, so it is raised
@@ -81,6 +108,7 @@ def run_opencode(prompt, model):
 
     @param prompt The prompt text sent to opencode.
     @param model The `provider/model` string passed to `opencode -m`.
+    @param cwd Directory to run opencode in, or None for the current directory.
     @return List of decoded JSON event dicts from stdout, in order.
     @throws OpencodeError If opencode exits non-zero or prints no JSON events.
     """
@@ -88,6 +116,7 @@ def run_opencode(prompt, model):
         ["opencode", "run", "--format", "json", "--auto", "-m", model, prompt],
         capture_output=True,
         text=True,
+        cwd=cwd,
     )
     if proc.returncode != 0:
         raise OpencodeError(f"opencode exited {proc.returncode}: {proc.stderr.strip()}")
