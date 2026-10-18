@@ -30,7 +30,7 @@ def write_cases(project, cases):
     path.write_text(yaml.safe_dump(cases))
 
 
-def run_harness(project, *, skill="harness-fixtures/canary-word", case="reports-canary-word", model=MODEL):
+def run_harness(project, *, skill="harness-fixtures/canary-word", case="reports-canary-word", model: str | None = MODEL):
     # Pass model=None to leave out -m, which is how the required-flag test runs.
     args = [skill, "--case", case]
     if model is not None:
