@@ -180,6 +180,7 @@ def build_record(skill, case_id, model, case, events):
     """
     parsed = parse_events(events)
     checks = grade(case.get("checks", []), parsed["output"])
+    skill_id = skill.rsplit("/", 1)[-1]
     return {
         "skill": skill,
         "case": case_id,
@@ -187,6 +188,7 @@ def build_record(skill, case_id, model, case, events):
         "prompt": case["prompt"],
         "output": parsed["output"],
         "skills_loaded": parsed["skills_loaded"],
+        "skill_loaded": skill_id in parsed["skills_loaded"],
         "checks": checks,
         "passed": all(check["passed"] for check in checks),
     }
