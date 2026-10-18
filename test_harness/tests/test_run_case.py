@@ -30,7 +30,7 @@ def write_cases(project, cases):
     path.write_text(yaml.safe_dump(cases))
 
 
-def run_harness(project, *, skill="harness-fixtures/canary-word", case="reports-canary-word", model=MODEL):
+def run_harness(project, *, skill="harness-fixtures/canary-word", case="reports-canary-word", model: str | None = MODEL):
     # Pass model=None to leave out -m, which is how the required-flag test runs.
     args = [skill, "--case", case]
     if model is not None:
@@ -63,6 +63,7 @@ def test_passes_when_skill_loads_and_output_contains_value(project):
     assert result["model"] == MODEL
     assert "ZEPHYR-7741" in result["output"]
     assert "canary-word" in result["skills_loaded"]
+    assert result["skill_loaded"] is True
     assert result["checks"] == [{"type": "output_contains", "value": "ZEPHYR-7741", "passed": True}]
 
 

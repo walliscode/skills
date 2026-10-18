@@ -1,0 +1,6 @@
+{
+  "include": ["test_harness"],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.11"
+}
