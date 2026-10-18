@@ -6,7 +6,7 @@ CASE = {"prompt": "Use the canary-word skill.", "checks": []}
 def skill_event(skill_id):
     return {
         "type": "tool_use",
-        "part": {"tool": "skill", "state": {"input": {"id": skill_id}}},
+        "part": {"tool": "skill", "state": {"status": "completed", "input": {"id": skill_id}}},
     }
 
 
@@ -24,3 +24,14 @@ def test_records_skill_not_loaded_when_no_skill_tool_use():
 
 def test_records_skill_not_loaded_when_only_other_skill_loaded():
     assert record([skill_event("tdd")])["skill_loaded"] is False
+
+
+def test_denied_skill_call_is_not_a_load():
+    denied = {
+        "type": "tool_use",
+        "part": {
+            "tool": "skill",
+            "state": {"status": "error", "input": {"id": "canary-word"}, "error": "Permission denied: skill"},
+        },
+    }
+    assert record([denied])["skill_loaded"] is False

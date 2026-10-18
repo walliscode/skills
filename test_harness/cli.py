@@ -9,14 +9,16 @@ from pathlib import Path
 
 from test_harness import harness
 
+ARMS = ("with", "without")
+
 
 def main(argv=None):
-    """@brief Run one eval case for one skill N times and report each result.
+    """@brief Run one eval case for one skill N times under each arm and report each result.
 
     N comes from the harness config `runs`. Each run uses a fresh workspace built
-    from the case's fixtures.
+    from the case's fixtures. The "with" arm runs first, then the "without" arm.
 
-    Exit codes: 0 if every run passes, 1 if any run fails, 2 for usage or opencode errors.
+    Exit codes: 0 if every "with" run passes, 1 if any "with" run fails, 2 for usage or opencode errors.
     A run that errors stops the loop, so earlier runs may already have written results.
     Results are written under `test_harness/results/` in the current directory.
 
@@ -53,24 +55,27 @@ def main(argv=None):
         print(f"error: model '{args.model}' must be one of: {', '.join(models)}", file=sys.stderr)
         return 2
 
-    # Sent verbatim. The "with" arm runs normally (#12), so whether the skill
-    # gets loaded is up to the model and is recorded in skills_loaded.
+    # Sent verbatim. Both arms run for every case: "with" leaves the skill
+    # available, "without" denies it. Only the "with" arm decides the exit code,
+    # since "without" is the baseline and is expected to fail the checks.
     all_passed = True
-    for _ in range(config["runs"]):
-        workspace = harness.make_workspace(root, args.skill, args.case)
-        try:
-            events = harness.run_opencode(case["prompt"], args.model, cwd=workspace)
-        except harness.OpencodeError as err:
-            print(f"error: {err}", file=sys.stderr)
-            return 2
-        finally:
-            shutil.rmtree(workspace, ignore_errors=True)
+    for arm in ARMS:
+        for _ in range(config["runs"]):
+            workspace = harness.make_workspace(root, args.skill, args.case, arm=arm)
+            try:
+                events = harness.run_opencode(case["prompt"], args.model, cwd=workspace)
+            except harness.OpencodeError as err:
+                print(f"error: {err}", file=sys.stderr)
+                return 2
+            finally:
+                shutil.rmtree(workspace, ignore_errors=True)
 
-        record = harness.build_record(args.skill, args.case, args.model, case, events)
-        path = harness.write_result(root / "test_harness" / "results", record)
+            record = harness.build_record(args.skill, args.case, args.model, case, events, arm=arm)
+            path = harness.write_result(root / "test_harness" / "results", record)
 
-        passed = record["passed"]
-        all_passed = all_passed and passed
-        print(f"{'PASS' if passed else 'FAIL'} {args.skill} {args.case} ({args.model})")
-        print(f"result: {path}")
+            passed = record["passed"]
+            if arm == "with":
+                all_passed = all_passed and passed
+            print(f"{'PASS' if passed else 'FAIL'} {args.skill} {args.case} ({args.model}, {arm})")
+            print(f"result: {path}")
     return 0 if all_passed else 1
