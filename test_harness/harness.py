@@ -178,6 +178,68 @@ def run_opencode(prompt, model, cwd=None):
     return events
 
 
+def session_id(events):
+    """@brief Return the opencode session id that the run's events belong to.
+
+    @param events List of event dicts from run_opencode().
+    @return The first `sessionID` found in the events, or None if none has one.
+    """
+    for event in events:
+        if event.get("sessionID"):
+            return event["sessionID"]
+    return None
+
+
+def export_session(sid, cwd=None):
+    """@brief Export one opencode session as JSON.
+
+    Usage data is optional, so any failure here is not raised. A run still
+    counts even when its session export is missing.
+
+    @param sid The session id from session_id().
+    @param cwd Directory to run opencode in, or None for the current directory.
+    @return The parsed export dict, or None if there is no session id or the export failed.
+    """
+    if sid is None:
+        return None
+    try:
+        proc = subprocess.run(
+            ["opencode", "session", "export", sid],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+        )
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return None
+
+
+def session_usage(export):
+    """@brief Pull the cost and token counts out of a session export.
+
+    Any field the export lacks is None, so a missing export still gives a record of the same shape.
+
+    @param export The dict from export_session(), or None.
+    @return Dict with `cost` and `tokens` (`input`, `output`, `cached`, where cached is cache reads).
+    """
+    info = (export or {}).get("info", {})
+    tokens = info.get("tokens") or {}
+    cache = tokens.get("cache") or {}
+    return {
+        "cost": info.get("cost"),
+        "tokens": {
+            "input": tokens.get("input"),
+            "output": tokens.get("output"),
+            "cached": cache.get("read"),
+        },
+    }
+
+
 def parse_events(events):
     """@brief Extract the final text and the skills loaded from opencode events.
 
@@ -262,7 +324,9 @@ def grade_rubric(criteria, output, model):
     return parse_events(events)["output"].strip().upper() == "PASS"
 
 
-def build_record(skill, case_id, model, case, events, arm="with", workspace=None, judge=None):
+def build_record(
+    skill, case_id, model, case, events, arm="with", workspace=None, judge=None, session=None
+):
     """@brief Turn one opencode run into the stored result record.
 
     Parses the events, grades them against the case's checks, runs the rubric if the checks passed, and bundles the result.
@@ -275,6 +339,7 @@ def build_record(skill, case_id, model, case, events, arm="with", workspace=None
     @param arm `with` or `without`, the arm the run was made under.
     @param workspace Directory the run worked in, for `file_contains` checks.
     @param judge Callable `(criteria, output) -> bool` used for the rubric, or None to skip it.
+    @param session The dict from export_session() for this run, or None if it is unavailable.
     @return The result record dict, ready for write_result().
     """
     # Pull out the reply text and the skills that loaded.
@@ -288,11 +353,16 @@ def build_record(skill, case_id, model, case, events, arm="with", workspace=None
         rubric = {"criteria": case["rubric"], "passed": judge(case["rubric"], parsed["output"])}
     # The skill's id is its folder name, the same form the skill tool uses.
     skill_id = skill.rsplit("/", 1)[-1]
+    usage = session_usage(session)
     return {
         "skill": skill,
         "case": case_id,
         "model": model,
         "arm": arm,
+        "session_id": session_id(events),
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "cost": usage["cost"],
+        "tokens": usage["tokens"],
         "prompt": case["prompt"],
         "output": parsed["output"],
         "skills_loaded": parsed["skills_loaded"],

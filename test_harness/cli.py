@@ -115,6 +115,8 @@ def main(argv=None):
                 try:
                     # Run the prompt in the workspace, then grade the result there.
                     events = harness.run_opencode(case["prompt"], args.model, cwd=workspace)
+                    # Export the session for its cost and token counts. A missing export is recorded as null.
+                    session = harness.export_session(harness.session_id(events), cwd=workspace)
                     record = harness.build_record(
                         skill,
                         case["id"],
@@ -124,6 +126,7 @@ def main(argv=None):
                         arm=arm,
                         workspace=workspace,
                         judge=lambda criteria, output: harness.grade_rubric(criteria, output, args.model),
+                        session=session,
                     )
                 except harness.OpencodeError as err:
                     # opencode itself failed, so this is an error (exit 2), not a graded FAIL.
