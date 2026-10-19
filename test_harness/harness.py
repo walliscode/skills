@@ -93,6 +93,20 @@ def evals_path(skill_dir):
     return skill_dir / "evals" / "evals.yaml"
 
 
+def discover_skills(root):
+    """@brief Find every skill under the repo root that has an eval cases file.
+
+    Skills use the `<module>/<skill>` layout, so each one is two folders deep.
+
+    @param root Repo root to search.
+    @return Sorted list of `<module>/<skill>` paths, relative to root.
+    """
+    # Each evals.yaml sits at <module>/<skill>/evals/evals.yaml, so its skill folder is two levels above the file.
+    return sorted(
+        path.parent.parent.relative_to(root).as_posix() for path in root.glob("*/*/evals/evals.yaml")
+    )
+
+
 def load_cases(skill_dir):
     """@brief Load the list of eval cases for a skill.
 
