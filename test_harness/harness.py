@@ -161,25 +161,32 @@ def parse_events(events):
     return {"output": "".join(text).strip(), "skills_loaded": skills}
 
 
-def grade(checks, output):
-    """@brief Grade a run's output against a list of deterministic checks.
+def grade(checks, output, workspace=None):
+    """@brief Grade a run's output and workspace files against a list of deterministic checks.
 
-    @param checks List of check dicts, each with `type` and `value`.
+    @param checks List of check dicts, each with `type` and `value`. `file_contains`
+           checks also have `path`, relative to the workspace.
     @param output The output text to grade.
-    @return List of graded check dicts with `type`, `value` and `passed`.
+    @param workspace Directory the run worked in, read by `file_contains` checks.
+    @return List of graded check dicts: each check's fields plus `passed`.
     @throws ValueError If a check has an unsupported `type`.
     """
     graded = []
     for check in checks:
-        if check["type"] != "output_contains":
+        if check["type"] == "output_contains":
+            passed = check["value"] in output
+        elif check["type"] == "regex":
+            passed = re.search(check["value"], output) is not None
+        elif check["type"] == "file_contains":
+            target = workspace / check["path"] if workspace is not None else None
+            passed = target is not None and target.is_file() and check["value"] in target.read_text(encoding="utf-8")
+        else:
             raise ValueError(f"unsupported check type: {check['type']}")
-        graded.append(
-            {"type": check["type"], "value": check["value"], "passed": check["value"] in output}
-        )
+        graded.append({**check, "passed": passed})
     return graded
 
 
-def build_record(skill, case_id, model, case, events, arm="with"):
+def build_record(skill, case_id, model, case, events, arm="with", workspace=None):
     """@brief Turn one opencode run into the stored result record.
 
     Parses the events, grades them against the case's checks, and bundles the result.
@@ -190,10 +197,11 @@ def build_record(skill, case_id, model, case, events, arm="with"):
     @param case The case dict, including `prompt` and `checks`.
     @param events List of event dicts from run_opencode().
     @param arm `with` or `without`, the arm the run was made under.
+    @param workspace Directory the run worked in, for `file_contains` checks.
     @return The result record dict, ready for write_result().
     """
     parsed = parse_events(events)
-    checks = grade(case.get("checks", []), parsed["output"])
+    checks = grade(case.get("checks", []), parsed["output"], workspace)
     skill_id = skill.rsplit("/", 1)[-1]
     return {
         "skill": skill,
