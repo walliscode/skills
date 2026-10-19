@@ -69,6 +69,19 @@ def test_passes_when_skill_loads_and_output_contains_value(project):
 
 
 @needs_opencode
+def test_records_session_id_timestamp_cost_and_tokens(project):
+    proc = run_harness(project)
+
+    assert proc.returncode == 0, proc.stderr
+    result = first_result(project)
+    assert result["session_id"].startswith("ses")
+    assert result["timestamp"]
+    assert result["model"] == MODEL
+    assert result["cost"] is not None and result["cost"] >= 0
+    assert all(result["tokens"][key] is not None and result["tokens"][key] >= 0 for key in ("input", "output", "cached"))
+
+
+@needs_opencode
 def test_fails_when_output_lacks_value(project):
     write_cases(
         project,
