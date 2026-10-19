@@ -64,13 +64,15 @@ def main(argv=None):
             workspace = harness.make_workspace(root, args.skill, args.case, arm=arm)
             try:
                 events = harness.run_opencode(case["prompt"], args.model, cwd=workspace)
+                record = harness.build_record(
+                    args.skill, args.case, args.model, case, events, arm=arm, workspace=workspace
+                )
             except harness.OpencodeError as err:
                 print(f"error: {err}", file=sys.stderr)
                 return 2
             finally:
                 shutil.rmtree(workspace, ignore_errors=True)
 
-            record = harness.build_record(args.skill, args.case, args.model, case, events, arm=arm)
             path = harness.write_result(root / "test_harness" / "results", record)
 
             passed = record["passed"]
