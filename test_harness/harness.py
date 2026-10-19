@@ -224,10 +224,34 @@ def grade(checks, output, workspace=None):
     return graded
 
 
-def build_record(skill, case_id, model, case, events, arm="with", workspace=None):
+def grade_rubric(criteria, output, model):
+    """@brief Ask the model whether an output meets a rubric's criteria.
+
+    The reply counts as a pass only if it is exactly PASS, ignoring case and whitespace.
+    Anything else, including a hedged reply, is a fail.
+
+    @param criteria The rubric text describing what a passing answer looks like.
+    @param output The run's output text to grade.
+    @param model The `provider/model` string used to grade.
+    @return True if the grader replied PASS, otherwise False.
+    """
+    prompt = (
+        "You are grading an answer against criteria.\n\n"
+        f"Criteria: {criteria}\n\n"
+        f"Answer:\n{output}\n\n"
+        "Reply with exactly PASS if the answer meets the criteria, otherwise reply with exactly FAIL. "
+        "Reply with nothing else."
+    )
+    # Grade in an empty directory so the grader doesn't pick up the repo's skills or files.
+    with tempfile.TemporaryDirectory(prefix="harness-judge-") as tmp:
+        events = run_opencode(prompt, model, cwd=Path(tmp))
+    return parse_events(events)["output"].strip().upper() == "PASS"
+
+
+def build_record(skill, case_id, model, case, events, arm="with", workspace=None, judge=None):
     """@brief Turn one opencode run into the stored result record.
 
-    Parses the events, grades them against the case's checks, and bundles the result.
+    Parses the events, grades them against the case's checks, runs the rubric if the checks passed, and bundles the result.
 
     @param skill The skill path, e.g. `engineering/tdd`.
     @param case_id The case id.
@@ -236,12 +260,18 @@ def build_record(skill, case_id, model, case, events, arm="with", workspace=None
     @param events List of event dicts from run_opencode().
     @param arm `with` or `without`, the arm the run was made under.
     @param workspace Directory the run worked in, for `file_contains` checks.
+    @param judge Callable `(criteria, output) -> bool` used for the rubric, or None to skip it.
     @return The result record dict, ready for write_result().
     """
     # Pull out the reply text and the skills that loaded.
     parsed = parse_events(events)
     # Grade the reply and any workspace files. A case with no checks gets an empty list.
     checks = grade(case.get("checks", []), parsed["output"], workspace)
+    checks_passed = all(check["passed"] for check in checks)
+    # The rubric only runs once the cheap checks have passed, to save grading cost.
+    rubric = None
+    if checks_passed and judge is not None and case.get("rubric"):
+        rubric = {"criteria": case["rubric"], "passed": judge(case["rubric"], parsed["output"])}
     # The skill's id is its folder name, the same form the skill tool uses.
     skill_id = skill.rsplit("/", 1)[-1]
     return {
@@ -255,8 +285,10 @@ def build_record(skill, case_id, model, case, events, arm="with", workspace=None
         # Whether the skill under test was among the loaded skills.
         "skill_loaded": skill_id in parsed["skills_loaded"],
         "checks": checks,
-        # A run passes only if every check passed (vacuously true with no checks).
-        "passed": all(check["passed"] for check in checks),
+        # Null when the rubric did not run.
+        "rubric": rubric,
+        # A run passes only if every check passed and the rubric, if run, passed.
+        "passed": checks_passed and (rubric is None or rubric["passed"]),
     }
 
 
