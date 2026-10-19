@@ -2,6 +2,8 @@
 @brief Core logic for the skill eval harness: load cases, run opencode, grade, and store results.
 """
 
+# Standard library imports: JSON, env vars, regexes, file copying, subprocesses,
+# temp directories, timestamps and paths.
 import json
 import os
 import re
@@ -11,8 +13,10 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Third-party YAML parser, used for the config and the eval case files.
 import yaml
 
+# The config file sits next to this module, so it is found wherever the harness is run from.
 CONFIG_PATH = Path(__file__).with_name("config.yaml")
 
 
@@ -22,6 +26,7 @@ def load_config(path=CONFIG_PATH):
     @param path Path to the harness config YAML.
     @return The parsed config dict, with `models` (list of `provider/model`) and `runs` (int).
     """
+    # Read the file as text, then parse the YAML into a dict.
     return yaml.safe_load(path.read_text())
 
 
@@ -40,17 +45,25 @@ def make_workspace(root, skill, case_id, parent=None, arm="with"):
     @param arm `with` to leave the skill available, `without` to deny it.
     @return Path to a new temporary directory the caller should remove.
     """
+    # Create an empty temp directory for this run only. The prefix makes it easy to spot.
     workspace = Path(tempfile.mkdtemp(prefix="harness-run-", dir=parent))
+    # Where this case's starting files live, if the case has any.
     fixtures = root / skill / "evals" / "fixtures" / case_id
     if fixtures.is_dir():
+        # Copy the fixtures in. dirs_exist_ok lets this work even if the directory already exists.
         shutil.copytree(fixtures, workspace, dirs_exist_ok=True)
+    # Load the repo's opencode.json as a dict so we can change it for this run.
     config = json.loads((root / "opencode.json").read_text())
     if "skills" in config:
         # Skill paths are relative to the repo root, but the workspace is a temp dir.
+        # Turn each one into an absolute path so opencode can still find the skill.
         config["skills"] = [str((root / entry).resolve()) for entry in config["skills"]]
     if arm == "without":
+        # The skill's id is its folder name, e.g. `engineering/tdd` -> `tdd`.
         skill_id = skill.rsplit("/", 1)[-1]
+        # Deny that one skill for this run. Other skills are unaffected.
         config["permission"] = {"skill": {skill_id: "deny"}}
+    # Write the adjusted config into the workspace, where opencode will read it.
     (workspace / "opencode.json").write_text(json.dumps(config, indent=2) + "\n")
     return workspace
 
@@ -64,6 +77,7 @@ def allowed_models(case, config_models):
     @param config_models The models from the harness config.
     @return The list of allowed `provider/model` strings for the case.
     """
+    # Use the case's own list if it set one, otherwise fall back to the config list.
     return case["models"] if "models" in case else config_models
 
 
@@ -75,6 +89,7 @@ def evals_path(skill_dir):
     @param skill_dir Path to the skill directory, e.g. `engineering/tdd`.
     @return Path to `<skill_dir>/evals/evals.yaml`.
     """
+    # Build the path to evals.yaml inside the skill's evals folder.
     return skill_dir / "evals" / "evals.yaml"
 
 
@@ -85,6 +100,7 @@ def load_cases(skill_dir):
     @return The parsed YAML list of cases, or an empty list if the file is empty.
     """
     path = evals_path(skill_dir)
+    # An empty YAML file parses to None, so `or []` turns that into an empty list.
     return yaml.safe_load(path.read_text()) or []
 
 
@@ -96,9 +112,11 @@ def find_case(cases, case_id):
     @return The matching case dict.
     @throws KeyError If no case has that id.
     """
+    # Return the first case whose id matches.
     for case in cases:
         if case["id"] == case_id:
             return case
+    # No match: raise so the caller can report the bad id.
     raise KeyError(case_id)
 
 
@@ -120,19 +138,27 @@ def run_opencode(prompt, model, cwd=None):
     """
     # opencode finds its project from PWD, which subprocess's cwd does not update.
     proc = subprocess.run(
+        # The command: JSON output, auto-approve tool use, pick the model, then the prompt.
         ["opencode", "run", "--format", "json", "--auto", "-m", model, prompt],
+        # Capture stdout and stderr as text instead of printing them.
         capture_output=True,
         text=True,
+        # Run inside the workspace, if one was given.
         cwd=cwd,
+        # Set PWD to match cwd, so opencode reads the workspace's opencode.json.
+        # With no cwd, leave the environment alone (None).
         env={**os.environ, "PWD": str(cwd)} if cwd is not None else None,
     )
+    # A non-zero exit means opencode itself failed, not that the skill failed.
     if proc.returncode != 0:
         raise OpencodeError(f"opencode exited {proc.returncode}: {proc.stderr.strip()}")
     events = []
+    # Each line of stdout is one JSON event. Skip anything that isn't a JSON object.
     for line in proc.stdout.splitlines():
         line = line.strip()
         if line.startswith("{"):
             events.append(json.loads(line))
+    # No events at all means there is nothing to grade.
     if not events:
         raise OpencodeError("opencode produced no JSON events")
     return events
@@ -148,16 +174,22 @@ def parse_events(events):
     @return Dict with `output` (concatenated text parts, stripped) and
             `skills_loaded` (list of skill ids from completed `skill` tool_use events, in order).
     """
+    # Collected pieces of the model's reply, and the skill ids that really loaded.
     text = []
     skills = []
     for event in events:
+        # The payload of each event lives under `part`; default to empty if missing.
         part = event.get("part", {})
         if event.get("type") == "text":
+            # Keep the text of each reply piece, in order.
             text.append(part.get("text", ""))
         if event.get("type") == "tool_use" and part.get("tool") == "skill":
+            # The state holds the status and input of this skill call.
             state = part.get("state", {})
+            # Only a completed call counts as a load. Denied or errored calls are ignored.
             if state.get("status") == "completed":
                 skills.append(state.get("input", {}).get("id"))
+    # Join the text pieces into one string and remove surrounding whitespace.
     return {"output": "".join(text).strip(), "skills_loaded": skills}
 
 
@@ -174,14 +206,20 @@ def grade(checks, output, workspace=None):
     graded = []
     for check in checks:
         if check["type"] == "output_contains":
+            # Pass if the expected text appears anywhere in the output.
             passed = check["value"] in output
         elif check["type"] == "regex":
+            # Pass if the pattern matches somewhere in the output.
             passed = re.search(check["value"], output) is not None
         elif check["type"] == "file_contains":
+            # Build the file's path inside the workspace, or None if there is no workspace.
             target = workspace / check["path"] if workspace is not None else None
+            # Pass only if the file exists and contains the expected text.
             passed = target is not None and target.is_file() and check["value"] in target.read_text(encoding="utf-8")
         else:
+            # Unknown check types are a mistake in the case file, so fail loudly.
             raise ValueError(f"unsupported check type: {check['type']}")
+        # Keep the check's own fields and add the result.
         graded.append({**check, "passed": passed})
     return graded
 
@@ -200,8 +238,11 @@ def build_record(skill, case_id, model, case, events, arm="with", workspace=None
     @param workspace Directory the run worked in, for `file_contains` checks.
     @return The result record dict, ready for write_result().
     """
+    # Pull out the reply text and the skills that loaded.
     parsed = parse_events(events)
+    # Grade the reply and any workspace files. A case with no checks gets an empty list.
     checks = grade(case.get("checks", []), parsed["output"], workspace)
+    # The skill's id is its folder name, the same form the skill tool uses.
     skill_id = skill.rsplit("/", 1)[-1]
     return {
         "skill": skill,
@@ -211,8 +252,10 @@ def build_record(skill, case_id, model, case, events, arm="with", workspace=None
         "prompt": case["prompt"],
         "output": parsed["output"],
         "skills_loaded": parsed["skills_loaded"],
+        # Whether the skill under test was among the loaded skills.
         "skill_loaded": skill_id in parsed["skills_loaded"],
         "checks": checks,
+        # A run passes only if every check passed (vacuously true with no checks).
         "passed": all(check["passed"] for check in checks),
     }
 
@@ -227,10 +270,15 @@ def write_result(results_dir, record):
     @param record Result dict from build_record().
     @return Path to the written file.
     """
+    # Make sure the results folder exists.
     results_dir.mkdir(parents=True, exist_ok=True)
+    # A UTC timestamp to microseconds, so files sort in run order and don't collide.
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    # Replace anything unsafe in a filename (like `/` in `provider/model`) with `_`.
     model = re.sub(r"[^A-Za-z0-9._-]+", "_", record["model"])
+    # Join the parts into one filename. `/` in the skill path becomes `__`.
     name = f"{stamp}__{record['skill'].replace('/', '__')}__{record['case']}__{record['arm']}__{model}.json"
     path = results_dir / name
+    # Write the record as pretty JSON with a trailing newline.
     path.write_text(json.dumps(record, indent=2) + "\n")
     return path
