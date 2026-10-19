@@ -1,5 +1,5 @@
 """@file cli.py
-@brief Command-line entry point: `python -m test_harness <module>/<skill> --case <id> -m <model>`.
+@brief Command-line entry point: `python -m test_harness [<module>/<skill>] [--case <id>] -m <model>`.
 """
 
 # Standard library: command-line parsing, deleting folders, printing errors and paths.
@@ -14,11 +14,60 @@ from test_harness import harness
 ARMS = ("with", "without")
 
 
+def plan_runs(root, skill_arg, case_arg, model, config):
+    """@brief Work out which (skill, case) pairs to run, and check each one is runnable.
+
+    Checks everything before any run starts, so a bad skill, case or model fails
+    without spending any model calls.
+
+    @param root Repo root to look for skills under.
+    @param skill_arg The `<module>/<skill>` given on the command line, or None for every skill.
+    @param case_arg The case id given with `--case`, or None for every case in each skill.
+    @param model The `provider/model` string requested with `-m`.
+    @param config The loaded harness config.
+    @return List of `(skill, case_dict)` pairs, in run order.
+    @throws ValueError With a message for the user if something can't be run.
+    """
+    # With no skill argument, every skill that has an evals file is selected.
+    skills = [skill_arg] if skill_arg else harness.discover_skills(root)
+    if not skills:
+        raise ValueError("no skills with evals/evals.yaml found")
+
+    plan = []
+    for skill in skills:
+        skill_dir = root / skill
+        # A skill without an evals file can't be run.
+        if not harness.evals_path(skill_dir).is_file():
+            raise ValueError(f"no {skill}/evals/evals.yaml")
+        cases = harness.load_cases(skill_dir)
+        if case_arg is not None:
+            try:
+                # Only the one requested case runs.
+                cases = [harness.find_case(cases, case_arg)]
+            except KeyError:
+                # With no skill named, skip skills that don't have the case. With one named, that's an error.
+                if skill_arg:
+                    raise ValueError(f"no case '{case_arg}' in {skill}/evals/evals.yaml")
+                continue
+        for case in cases:
+            # Refuse a model that the case (or the config list) doesn't allow.
+            models = harness.allowed_models(case, config["models"])
+            if model not in models:
+                raise ValueError(f"model '{model}' must be one of: {', '.join(models)}")
+            plan.append((skill, case))
+    if not plan:
+        raise ValueError(f"no skill has case '{case_arg}'")
+    return plan
+
+
 def main(argv=None):
-    """@brief Run one eval case for one skill N times under each arm and report each result.
+    """@brief Run eval cases for one or every skill, N times under each arm, and report each result.
 
     N comes from the harness config `runs`. Each run uses a fresh workspace built
     from the case's fixtures. The "with" arm runs first, then the "without" arm.
+
+    With no skill argument every skill under the current directory runs. Without
+    `--case` every case of each selected skill runs.
 
     Exit codes: 0 if every "with" run passes, 1 if any "with" run fails, 2 for usage or opencode errors.
     A run that errors stops the loop, so earlier runs may already have written results.
@@ -27,10 +76,12 @@ def main(argv=None):
     @param argv Argument list, or None to use sys.argv.
     @return The process exit code.
     """
-    # Describe the command-line arguments: the skill path, the case id, and the model.
+    # Describe the command-line arguments: an optional skill path, an optional case id, and the model.
     parser = argparse.ArgumentParser(prog="test_harness")
-    parser.add_argument("skill", help="<module>/<skill>, e.g. engineering/tdd")
-    parser.add_argument("--case", required=True, help="case id from the skill's evals/evals.yaml")
+    parser.add_argument(
+        "skill", nargs="?", help="<module>/<skill>, e.g. engineering/tdd; omit to run every skill"
+    )
+    parser.add_argument("--case", help="case id from the skill's evals/evals.yaml; omit to run every case")
     parser.add_argument(
         "-m",
         "--model",
@@ -42,25 +93,12 @@ def main(argv=None):
 
     # Work from the current directory, which is where the skill folders live.
     root = Path.cwd()
-    skill_dir = root / args.skill
-    evals_file = harness.evals_path(skill_dir)
-    # Stop early if the skill has no eval cases file.
-    if not evals_file.is_file():
-        print(f"error: no {args.skill}/evals/evals.yaml", file=sys.stderr)
-        return 2
-
-    try:
-        # Find the requested case in the skill's evals file.
-        case = harness.find_case(harness.load_cases(skill_dir), args.case)
-    except KeyError:
-        print(f"error: no case '{args.case}' in {args.skill}/evals/evals.yaml", file=sys.stderr)
-        return 2
-
-    # Check the requested model is allowed for this case before spending any runs.
     config = harness.load_config()
-    models = harness.allowed_models(case, config["models"])
-    if args.model not in models:
-        print(f"error: model '{args.model}' must be one of: {', '.join(models)}", file=sys.stderr)
+    try:
+        # Check every skill, case and model up front, before any run starts.
+        plan = plan_runs(root, args.skill, args.case, args.model, config)
+    except ValueError as err:
+        print(f"error: {err}", file=sys.stderr)
         return 2
 
     # Sent verbatim. Both arms run for every case: "with" leaves the skill
@@ -68,41 +106,42 @@ def main(argv=None):
     # since "without" is the baseline and is expected to fail the checks.
     # Starts as passing and is turned off by any failing "with" run.
     all_passed = True
-    for arm in ARMS:
-        # Repeat each arm N times, from the config's `runs` value.
-        for _ in range(config["runs"]):
-            # A new workspace for each run, so no run sees another's files.
-            workspace = harness.make_workspace(root, args.skill, args.case, arm=arm)
-            try:
-                # Run the prompt in the workspace, then grade the result there.
-                events = harness.run_opencode(case["prompt"], args.model, cwd=workspace)
-                record = harness.build_record(
-                    args.skill,
-                    args.case,
-                    args.model,
-                    case,
-                    events,
-                    arm=arm,
-                    workspace=workspace,
-                    judge=lambda criteria, output: harness.grade_rubric(criteria, output, args.model),
-                )
-            except harness.OpencodeError as err:
-                # opencode itself failed, so this is an error (exit 2), not a graded FAIL.
-                print(f"error: {err}", file=sys.stderr)
-                return 2
-            finally:
-                # Always delete the workspace, even on error. Grading has already read the files.
-                shutil.rmtree(workspace, ignore_errors=True)
+    for skill, case in plan:
+        for arm in ARMS:
+            # Repeat each arm N times, from the config's `runs` value.
+            for _ in range(config["runs"]):
+                # A new workspace for each run, so no run sees another's files.
+                workspace = harness.make_workspace(root, skill, case["id"], arm=arm)
+                try:
+                    # Run the prompt in the workspace, then grade the result there.
+                    events = harness.run_opencode(case["prompt"], args.model, cwd=workspace)
+                    record = harness.build_record(
+                        skill,
+                        case["id"],
+                        args.model,
+                        case,
+                        events,
+                        arm=arm,
+                        workspace=workspace,
+                        judge=lambda criteria, output: harness.grade_rubric(criteria, output, args.model),
+                    )
+                except harness.OpencodeError as err:
+                    # opencode itself failed, so this is an error (exit 2), not a graded FAIL.
+                    print(f"error: {err}", file=sys.stderr)
+                    return 2
+                finally:
+                    # Always delete the workspace, even on error. Grading has already read the files.
+                    shutil.rmtree(workspace, ignore_errors=True)
 
-            # Save the graded record to test_harness/results/ and get its path.
-            path = harness.write_result(root / "test_harness" / "results", record)
+                # Save the graded record to test_harness/results/ and get its path.
+                path = harness.write_result(root / "test_harness" / "results", record)
 
-            passed = record["passed"]
-            if arm == "with":
-                # Only "with" runs affect the exit code. A single failure makes it 1.
-                all_passed = all_passed and passed
-            # Print one line per run, then where its result file was written.
-            print(f"{'PASS' if passed else 'FAIL'} {args.skill} {args.case} ({args.model}, {arm})")
-            print(f"result: {path}")
+                passed = record["passed"]
+                if arm == "with":
+                    # Only "with" runs affect the exit code. A single failure makes it 1.
+                    all_passed = all_passed and passed
+                # Print one line per run, then where its result file was written.
+                print(f"{'PASS' if passed else 'FAIL'} {skill} {case['id']} ({args.model}, {arm})")
+                print(f"result: {path}")
     # 0 if every "with" run passed, otherwise 1.
     return 0 if all_passed else 1
