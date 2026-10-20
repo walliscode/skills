@@ -5,7 +5,7 @@ import pytest
 from test_harness import report
 
 
-def record(passed=True, skill_loaded=True, cost: float | None = 0.1, checks=None, rubric=None, skill="s/canary", case="c", model="m", arm="with", skill_hash="h1", n=3):
+def record(passed=True, skill_loaded=True, cost: float | None = 0.1, checks=None, rubric=None, skill="s/canary", case="c", model="m", arm="with", skill_hash: str | None = "h1", n: int | None = 3):
     return {
         "skill": skill,
         "case": case,
