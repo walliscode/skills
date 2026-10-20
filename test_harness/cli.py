@@ -8,7 +8,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from test_harness import harness
+from test_harness import harness, report
 
 # The two arms every case runs under, in order: skill available, then skill denied.
 ARMS = ("with", "without")
@@ -60,6 +60,19 @@ def plan_runs(root, skill_arg, case_arg, model, config):
     return plan
 
 
+def report_command(results_dir):
+    """@brief Print the derived stats for every stored run.
+
+    @param results_dir Folder of result JSON files.
+    @return The process exit code, always 0.
+    """
+    runs, skipped = report.split_current(report.load_records(results_dir))
+    if skipped:
+        print(f"note: skipped {skipped} older result(s) without arm or skill_loaded", file=sys.stderr)
+    print(report.format_report(report.summarize(runs)))
+    return 0
+
+
 def main(argv=None):
     """@brief Run eval cases for one or every skill, N times under each arm, and report each result.
 
@@ -69,6 +82,8 @@ def main(argv=None):
     With no skill argument every skill under the current directory runs. Without
     `--case` every case of each selected skill runs.
 
+    `report` as the first argument prints derived stats from the stored results instead.
+
     Exit codes: 0 if every "with" run passes, 1 if any "with" run fails, 2 for usage or opencode errors.
     A run that errors stops the loop, so earlier runs may already have written results.
     Results are written under `test_harness/results/` in the current directory.
@@ -76,6 +91,10 @@ def main(argv=None):
     @param argv Argument list, or None to use sys.argv.
     @return The process exit code.
     """
+    args_list = sys.argv[1:] if argv is None else argv
+    if args_list[:1] == ["report"]:
+        return report_command(Path.cwd() / "test_harness" / "results")
+
     # Describe the command-line arguments: an optional skill path, an optional case id, and the model.
     parser = argparse.ArgumentParser(prog="test_harness")
     parser.add_argument(
