@@ -1,12 +1,14 @@
 from test_harness import compare, report
 
 
-def record(passed=True, skill_loaded=True, skill="s/canary", case="c", model="m", arm="with"):
+def record(passed=True, skill_loaded=True, skill="s/canary", case="c", model="m", arm="with", skill_hash="h1", n=3):
     return {
         "skill": skill,
         "case": case,
         "model": model,
         "arm": arm,
+        "skill_hash": skill_hash,
+        "n": n,
         "skill_loaded": skill_loaded,
         "cost": 0.1,
         "checks": [{"type": "output_contains", "value": "x", "passed": passed}],
@@ -32,6 +34,18 @@ def test_arm_comparison_leaves_a_missing_arm_as_none():
     comparisons = compare.arm_comparisons(report.summarize([("r1", record(arm="with"))]))
 
     assert comparisons[0]["without"] is None
+
+
+def test_arm_comparison_does_not_pair_arms_from_different_skill_hashes():
+    runs = [
+        ("r1", record(arm="with", skill_hash="old")),
+        ("r2", record(arm="without", skill_hash="new")),
+    ]
+
+    comparisons = compare.arm_comparisons(report.summarize(runs))
+
+    assert len(comparisons) == 2
+    assert all(item["with"] is None or item["without"] is None for item in comparisons)
 
 
 def test_arm_comparison_reports_the_pass_rate_difference_in_points():
@@ -63,10 +77,21 @@ def test_run_timelines_order_runs_by_their_file_name_stamp():
 
     timelines = compare.run_timelines(runs)
 
-    assert timelines[("s/canary", "c", "m", "with")] == [
+    assert timelines[("s/canary", "c", "m", "with", 3, "h1")] == [
         ("20261018T100000Z__a", True),
         ("20261019T100000Z__b", False),
     ]
+
+
+def test_run_timelines_split_runs_from_different_skill_hashes():
+    runs = [
+        ("20261018T100000Z__a", record(passed=True, skill_hash="old")),
+        ("20261019T100000Z__b", record(passed=False, skill_hash="new")),
+    ]
+
+    timelines = compare.run_timelines(runs)
+
+    assert len(timelines) == 2
 
 
 def test_run_timelines_skip_records_the_report_cannot_use():

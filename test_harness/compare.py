@@ -15,8 +15,19 @@ def arm_comparisons(groups):
     """
     paired = {}
     for group in groups:
-        key = (group["skill"], group["case"], group["model"])
-        paired.setdefault(key, {"skill": key[0], "case": key[1], "model": key[2], "with": None, "without": None})
+        key = (group["skill"], group["case"], group["model"], group["n"], group["skill_hash"])
+        paired.setdefault(
+            key,
+            {
+                "skill": key[0],
+                "case": key[1],
+                "model": key[2],
+                "n": key[3],
+                "skill_hash": key[4],
+                "with": None,
+                "without": None,
+            },
+        )
         paired[key][group["arm"]] = group
     return [paired[key] for key in sorted(paired)]
 
@@ -47,7 +58,7 @@ def format_arm_comparison(comparisons):
         if item["with"] is not None and item["without"] is not None:
             delta = (item["with"]["pass_rate"] - item["without"]["pass_rate"]) * 100
             line += f"  delta {delta:+.1f} pts"
-        blocks.append(f"{item['skill']} {item['case']} {item['model']}\n{line}")
+        blocks.append(f"{item['skill']} {item['case']} {item['model']} n={item['n']} hash {item['skill_hash'][:8]}\n{line}")
     return "\n\n".join(blocks)
 
 
@@ -58,12 +69,12 @@ def run_timelines(runs):
     report cannot use are left out.
 
     @param runs List of `(run_id, record)` pairs from report.load_records().
-    @return Dict of `(skill, case, model, arm)` to a list of `(run_id, passed)` in time order.
+    @return Dict of `(skill, case, model, arm, n, skill_hash)` to a list of `(run_id, passed)` in time order.
     """
     timelines = {}
     current, _ = report.split_current(runs)
     for run_id, record in sorted(current):
-        key = (record["skill"], record["case"], record["model"], record["arm"])
+        key = (record["skill"], record["case"], record["model"], record["arm"], record["n"], record["skill_hash"])
         timelines.setdefault(key, []).append((run_id, report.run_passed(record)))
     return timelines
 
@@ -75,8 +86,8 @@ def format_timelines(timelines):
     @return One line per group, with P or F for each run in order and the pass count.
     """
     lines = []
-    for (skill, case, model, arm), runs in sorted(timelines.items()):
+    for (skill, case, model, arm, n, skill_hash), runs in sorted(timelines.items()):
         marks = " ".join("P" if passed else "F" for _, passed in runs)
         passes = sum(1 for _, passed in runs if passed)
-        lines.append(f"{skill} {case} {model} ({arm})\n  {marks}  ({passes}/{len(runs)})")
+        lines.append(f"{skill} {case} {model} ({arm}) n={n} hash {skill_hash[:8]}\n  {marks}  ({passes}/{len(runs)})")
     return "\n\n".join(lines)

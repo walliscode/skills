@@ -35,18 +35,24 @@ def run_passed(record):
 def split_current(runs):
     """@brief Separate the runs the report can use from older records it can't.
 
-    Records from before arms and skill-load tracking lack `arm` and `skill_loaded`, so they can't be grouped or judged.
+    Records from before arms, skill-load tracking, skill hashes and N lack `arm`, `skill_loaded`,
+    `skill_hash` or `n`, so they can't be grouped or judged.
 
     @param runs List of `(run_id, record)` pairs from load_records().
     @return `(current, skipped)` where current is the usable pairs and skipped is how many were left out.
     """
-    current = [(run_id, record) for run_id, record in runs if "arm" in record and "skill_loaded" in record]
+    current = [
+        (run_id, record)
+        for run_id, record in runs
+        if "arm" in record and "skill_loaded" in record and "skill_hash" in record and "n" in record
+    ]
     return current, len(runs) - len(current)
 
 
 def summarize(runs):
-    """@brief Group runs by skill, case, model and arm, and derive the stats for each group.
+    """@brief Group runs by skill, case, model, arm, N and skill hash, and derive the stats for each group.
 
+    A change to a skill starts new groups, so its runs never mix with the old version's.
     Records that are not current (see split_current()) are left out.
 
     @param runs List of `(run_id, record)` pairs from load_records().
@@ -57,7 +63,7 @@ def summarize(runs):
     """
     groups = {}
     for run_id, record in split_current(runs)[0]:
-        key = (record["skill"], record["case"], record["model"], record["arm"])
+        key = (record["skill"], record["case"], record["model"], record["arm"], record["n"], record["skill_hash"])
         groups.setdefault(key, []).append((run_id, record))
     return [_summarize_group(key, members) for key, members in sorted(groups.items())]
 
@@ -65,11 +71,11 @@ def summarize(runs):
 def _summarize_group(key, members):
     """@brief Derive the stats for one group of runs.
 
-    @param key `(skill, case, model, arm)` tuple.
+    @param key `(skill, case, model, arm, n, skill_hash)` tuple.
     @param members List of `(run_id, record)` pairs in the group.
     @return The group dict described in summarize().
     """
-    skill, case, model, arm = key
+    skill, case, model, arm, n, skill_hash = key
     runs = len(members)
     passes = sum(1 for _, record in members if run_passed(record))
     pass_rate = passes / runs
@@ -92,6 +98,8 @@ def _summarize_group(key, members):
         "case": case,
         "model": model,
         "arm": arm,
+        "n": n,
+        "skill_hash": skill_hash,
         "runs": runs,
         "passes": passes,
         "pass_rate": pass_rate,
@@ -122,7 +130,8 @@ def format_report(groups):
     blocks = []
     for group in groups:
         lines = [
-            f"{group['skill']} {group['case']} {group['model']} ({group['arm']})",
+            f"{group['skill']} {group['case']} {group['model']} ({group['arm']})"
+            f" n={group['n']} hash {group['skill_hash'][:8]}",
             f"  pass {group['passes']}/{group['runs']} ({group['pass_rate'] * 100:.1f}%)"
             f"  pass variance {group['pass_variance']:.3f}",
             f"  cost/run {_money(group['cost_per_run'])}"
