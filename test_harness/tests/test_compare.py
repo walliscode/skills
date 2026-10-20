@@ -45,7 +45,10 @@ def test_arm_comparison_does_not_pair_arms_from_different_skill_hashes():
     comparisons = compare.arm_comparisons(report.summarize(runs))
 
     assert len(comparisons) == 2
-    assert all(item["with"] is None or item["without"] is None for item in comparisons)
+    assert [(item["n"], item["skill_hash"], item["with"] is None, item["without"] is None) for item in comparisons] == [
+        (3, "new", True, False),
+        (3, "old", False, True),
+    ]
 
 
 def test_arm_comparison_reports_the_pass_rate_difference_in_points():

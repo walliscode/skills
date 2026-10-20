@@ -152,6 +152,16 @@ def test_records_without_skill_hash_or_n_are_left_out():
     assert groups[0]["runs"] == 1
 
 
+def test_records_with_null_skill_hash_or_n_are_left_out():
+    null_hash = record(skill_hash=None)
+    null_n = record(n=None)
+
+    groups = report.summarize([("a", null_hash), ("b", null_n), ("new", record(passed=True))])
+
+    assert len(groups) == 1
+    assert groups[0]["runs"] == 1
+
+
 def test_runs_with_different_skill_hashes_are_separate_groups():
     groups = report.summarize(runs(record(skill_hash="h1"), record(skill_hash="h2")))
 

@@ -44,7 +44,10 @@ def split_current(runs):
     current = [
         (run_id, record)
         for run_id, record in runs
-        if "arm" in record and "skill_loaded" in record and "skill_hash" in record and "n" in record
+        if "arm" in record
+        and "skill_loaded" in record
+        and record.get("skill_hash") is not None
+        and record.get("n") is not None
     ]
     return current, len(runs) - len(current)
 
