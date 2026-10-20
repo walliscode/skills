@@ -104,6 +104,7 @@ def main(argv=None):
 
     Exit codes: 0 if every "with" run passes, 1 if any "with" run fails, 2 for usage or opencode errors.
     A run that errors stops the loop, so earlier runs may already have written results.
+    A session export that fails is recorded on its run, the loop carries on, and the exit code is 2 at the end.
     Results are written under `test_harness/results/` in the current directory.
 
     @param argv Argument list, or None to use sys.argv.
@@ -145,6 +146,8 @@ def main(argv=None):
     # since "without" is the baseline and is expected to fail the checks.
     # Starts as passing and is turned off by any failing "with" run.
     all_passed = True
+    # Starts as clear and is turned on by any run whose session export failed.
+    export_failed = False
     for skill, case in plan:
         skill_hash = harness.skill_hash(root / skill)
         for arm in ARMS:
@@ -155,8 +158,17 @@ def main(argv=None):
                 try:
                     # Run the prompt in the workspace, then grade the result there.
                     events = harness.run_opencode(case["prompt"], args.model, cwd=workspace)
-                    # Export the session for its cost and token counts. A missing export is recorded as null.
-                    session = harness.export_session(harness.session_id(events), cwd=workspace)
+                    # Export the session for its cost and token counts. A failed export is recorded on the run, and the batch carries on.
+                    export_error = None
+                    try:
+                        session = harness.export_session(harness.session_id(events), cwd=workspace)
+                    except harness.ExportError as err:
+                        # Usage data is optional, so this run is stored with null usage and the error text.
+                        session = None
+                        export_error = str(err)
+                        # Remember the failure so the batch exits 2 once every run has finished.
+                        export_failed = True
+                        print(f"error: export failed for {skill} {case['id']} ({arm}): {err}", file=sys.stderr)
                     record = harness.build_record(
                         skill,
                         case["id"],
@@ -169,6 +181,7 @@ def main(argv=None):
                         session=session,
                         skill_hash=skill_hash,
                         n=config["runs"],
+                        export_error=export_error,
                     )
                 except harness.OpencodeError as err:
                     # opencode itself failed, so this is an error (exit 2), not a graded FAIL.
@@ -188,5 +201,7 @@ def main(argv=None):
                 # Print one line per run, then where its result file was written.
                 print(f"{'PASS' if passed else 'FAIL'} {skill} {case['id']} ({args.model}, {arm})")
                 print(f"result: {path}")
-    # 0 if every "with" run passed, otherwise 1.
+    # 2 if any session export failed, since that is an opencode error. Otherwise 0 if every "with" run passed, 1 if not.
+    if export_failed:
+        return 2
     return 0 if all_passed else 1

@@ -162,6 +162,10 @@ class OpencodeError(Exception):
     """@brief Raised when the opencode process fails or produces no usable output."""
 
 
+class ExportError(Exception):
+    """@brief Raised when a session export cannot be fetched or parsed. The message says why."""
+
+
 def run_opencode(prompt, model, cwd=None):
     """@brief Run one prompt through `opencode run` and return its JSONL events.
 
@@ -217,12 +221,10 @@ def session_id(events):
 def export_session(sid, cwd=None):
     """@brief Export one opencode session as JSON.
 
-    Usage data is optional, so any failure here is not raised. A run still
-    counts even when its session export is missing.
-
     @param sid The session id from session_id().
     @param cwd Directory to run opencode in, or None for the current directory.
-    @return The parsed export dict, or None if there is no session id or the export failed.
+    @return The parsed export dict, or None if there is no session id.
+    @throws ExportError If opencode cannot be run, exits non-zero, or prints something that is not JSON.
     """
     if sid is None:
         return None
@@ -233,14 +235,14 @@ def export_session(sid, cwd=None):
             text=True,
             cwd=cwd,
         )
-    except OSError:
-        return None
+    except OSError as err:
+        raise ExportError(str(err)) from err
     if proc.returncode != 0:
-        return None
+        raise ExportError(proc.stderr.strip() or f"opencode session export exited {proc.returncode}")
     try:
         return json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        return None
+    except json.JSONDecodeError as err:
+        raise ExportError(f"session export was not valid JSON: {err}") from err
 
 
 def session_usage(export):
@@ -360,6 +362,7 @@ def build_record(
     session=None,
     skill_hash=None,
     n=None,
+    export_error=None,
 ):
     """@brief Turn one opencode run into the stored result record.
 
@@ -376,6 +379,7 @@ def build_record(
     @param session The dict from export_session() for this run, or None if it is unavailable.
     @param skill_hash The hash from skill_hash() at run time, or None if not known.
     @param n The `runs` value from the config this run was part of, or None if not known.
+    @param export_error The message from the failed session export, or None if the export worked.
     @return The result record dict, ready for write_result().
     """
     # Pull out the reply text and the skills that loaded.
@@ -401,6 +405,7 @@ def build_record(
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "cost": usage["cost"],
         "tokens": usage["tokens"],
+        "export_error": export_error,
         "prompt": case["prompt"],
         "output": parsed["output"],
         "skills_loaded": parsed["skills_loaded"],
