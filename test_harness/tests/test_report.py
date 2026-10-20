@@ -169,16 +169,15 @@ def test_runs_with_different_skill_hashes_are_separate_groups():
     assert all(g["runs"] == 1 for g in groups)
 
 
-def test_runs_with_different_n_are_separate_groups():
-    groups = report.summarize(runs(record(n=3), record(n=5)))
+def test_runs_with_different_n_share_a_group_so_more_runs_improve_the_count():
+    group = only_group(record(n=3), record(n=5))
 
-    assert [g["n"] for g in groups] == [3, 5]
+    assert group["runs"] == 2
 
 
-def test_format_report_shows_n_and_skill_hash_in_the_header():
+def test_format_report_shows_skill_hash_in_the_header():
     text = report.format_report(report.summarize(runs(record(skill_hash="abcdef123456", n=3))))
 
-    assert "n=3" in text
     assert "hash abcdef12" in text
 
 

@@ -45,9 +45,9 @@ def test_arm_comparison_does_not_pair_arms_from_different_skill_hashes():
     comparisons = compare.arm_comparisons(report.summarize(runs))
 
     assert len(comparisons) == 2
-    assert [(item["n"], item["skill_hash"], item["with"] is None, item["without"] is None) for item in comparisons] == [
-        (3, "new", True, False),
-        (3, "old", False, True),
+    assert [(item["skill_hash"], item["with"] is None, item["without"] is None) for item in comparisons] == [
+        ("new", True, False),
+        ("old", False, True),
     ]
 
 
@@ -80,7 +80,7 @@ def test_run_timelines_order_runs_by_their_file_name_stamp():
 
     timelines = compare.run_timelines(runs)
 
-    assert timelines[("s/canary", "c", "m", "with", 3, "h1")] == [
+    assert timelines[("s/canary", "c", "m", "with", "h1")] == [
         ("20261018T100000Z__a", True),
         ("20261019T100000Z__b", False),
     ]
