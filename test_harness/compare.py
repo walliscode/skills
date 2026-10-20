@@ -84,21 +84,20 @@ def run_timelines(runs):
 def format_timelines(timelines):
     """@brief Turn the timelines into the bar chart the compare command prints.
 
-    Each group gets a header, then one bar per run in time order. A bar's length is the
-    running pass rate up to that run, so progress over time shows as the bars grow or shrink.
+    Each group gets a header with its pass count, then one bar per run in time order.
+    A passing run is a full bar and a failing run is an empty bar, so the pass rate
+    shows as the proportion of full bars over time.
 
     @param timelines Dict from run_timelines().
-    @return One block per group: a header line, then a line per run with its bar, outcome and running rate.
+    @return One block per group: a header line, then a line per run with its bar and outcome.
     """
     blocks = []
     for (skill, case, model, arm, skill_hash), runs in sorted(timelines.items()):
-        lines = [f"{skill} {case} {model} ({arm}) hash {skill_hash[:8]}"]
-        passes = 0
+        passes = sum(1 for _, passed in runs if passed)
+        lines = [f"{skill} {case} {model} ({arm}) hash {skill_hash[:8]} ({passes}/{len(runs)})"]
         for index, (_, passed) in enumerate(runs, start=1):
-            passes += passed
-            rate = passes / index
-            bar = "█" * round(rate * BAR_WIDTH)
+            bar = "█" * BAR_WIDTH if passed else ""
             outcome = "P" if passed else "F"
-            lines.append(f"  {index:>3} {bar:<{BAR_WIDTH}} {outcome} {rate * 100:5.1f}%")
+            lines.append(f"  {index:>3} {bar:<{BAR_WIDTH}} {outcome}")
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)
