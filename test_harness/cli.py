@@ -8,7 +8,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from test_harness import harness, report
+from test_harness import compare, harness, report
 
 # The two arms every case runs under, in order: skill available, then skill denied.
 ARMS = ("with", "without")
@@ -73,6 +73,23 @@ def report_command(results_dir):
     return 0
 
 
+def compare_command(results_dir):
+    """@brief Print the with and without arm comparison, then each group's runs in time order.
+
+    @param results_dir Folder of result JSON files.
+    @return The process exit code, always 0.
+    """
+    runs = report.load_records(results_dir)
+    _, skipped = report.split_current(runs)
+    if skipped:
+        print(f"note: skipped {skipped} older result(s) without arm or skill_loaded", file=sys.stderr)
+    comparisons = compare.arm_comparisons(report.summarize(runs))
+    print(compare.format_arm_comparison(comparisons))
+    print()
+    print(compare.format_timelines(compare.run_timelines(runs)))
+    return 0
+
+
 def main(argv=None):
     """@brief Run eval cases for one or every skill, N times under each arm, and report each result.
 
@@ -83,6 +100,7 @@ def main(argv=None):
     `--case` every case of each selected skill runs.
 
     `report` as the first argument prints derived stats from the stored results instead.
+    `compare` as the first argument prints the with and without arms side by side, then runs over time.
 
     Exit codes: 0 if every "with" run passes, 1 if any "with" run fails, 2 for usage or opencode errors.
     A run that errors stops the loop, so earlier runs may already have written results.
@@ -94,6 +112,8 @@ def main(argv=None):
     args_list = sys.argv[1:] if argv is None else argv
     if args_list[:1] == ["report"]:
         return report_command(Path.cwd() / "test_harness" / "results")
+    if args_list[:1] == ["compare"]:
+        return compare_command(Path.cwd() / "test_harness" / "results")
 
     # Describe the command-line arguments: an optional skill path, an optional case id, and the model.
     parser = argparse.ArgumentParser(prog="test_harness")
