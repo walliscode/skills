@@ -1,6 +1,8 @@
 import json
 import subprocess
 
+import pytest
+
 from test_harness import harness
 
 SKILL = "harness-fixtures/canary-word"
@@ -49,35 +51,38 @@ def test_session_usage_records_nulls_for_fields_the_export_lacks():
     assert usage == {"cost": 0.1, "tokens": {"input": None, "output": None, "cached": None}}
 
 
-def test_export_session_returns_none_when_opencode_fails(monkeypatch):
+def test_export_session_raises_with_stderr_when_opencode_fails(monkeypatch):
     def fake_run(*args, **kwargs):
-        return subprocess.CompletedProcess(args, 1, stdout="", stderr="boom")
+        return subprocess.CompletedProcess(args, 1, stdout="", stderr="boom\n")
 
     monkeypatch.setattr(harness.subprocess, "run", fake_run)
 
-    assert harness.export_session("ses_abc") is None
+    with pytest.raises(harness.ExportError, match="boom"):
+        harness.export_session("ses_abc")
 
 
-def test_export_session_returns_none_when_output_is_not_json(monkeypatch):
+def test_export_session_raises_when_output_is_not_json(monkeypatch):
     def fake_run(*args, **kwargs):
         return subprocess.CompletedProcess(args, 0, stdout="not json", stderr="")
 
     monkeypatch.setattr(harness.subprocess, "run", fake_run)
 
-    assert harness.export_session("ses_abc") is None
+    with pytest.raises(harness.ExportError, match="not valid JSON"):
+        harness.export_session("ses_abc")
 
 
 def test_export_session_returns_none_without_a_session_id():
     assert harness.export_session(None) is None
 
 
-def test_export_session_returns_none_when_opencode_is_missing(monkeypatch):
+def test_export_session_raises_when_opencode_is_missing(monkeypatch):
     def fake_run(*args, **kwargs):
         raise FileNotFoundError("opencode")
 
     monkeypatch.setattr(harness.subprocess, "run", fake_run)
 
-    assert harness.export_session("ses_abc") is None
+    with pytest.raises(harness.ExportError, match="opencode"):
+        harness.export_session("ses_abc")
 
 
 def test_export_session_parses_the_export_json(monkeypatch):
