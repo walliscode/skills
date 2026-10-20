@@ -50,6 +50,7 @@ def test_hash_works_for_a_skill_folder_with_no_skill_md(tmp_path):
 
     assert len(harness.skill_hash(skill_dir)) == 64
 
+
 def test_record_includes_skill_hash_and_n():
     record = harness.build_record(
         "mod/skl", "c", "m", CASE, [], skill_hash="abc123", n=3

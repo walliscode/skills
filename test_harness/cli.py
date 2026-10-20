@@ -146,6 +146,7 @@ def main(argv=None):
     # Starts as passing and is turned off by any failing "with" run.
     all_passed = True
     for skill, case in plan:
+        skill_hash = harness.skill_hash(root / skill)
         for arm in ARMS:
             # Repeat each arm N times, from the config's `runs` value.
             for _ in range(config["runs"]):
@@ -166,7 +167,7 @@ def main(argv=None):
                         workspace=workspace,
                         judge=lambda criteria, output: harness.grade_rubric(criteria, output, args.model),
                         session=session,
-                        skill_hash=harness.skill_hash(root / skill),
+                        skill_hash=skill_hash,
                         n=config["runs"],
                     )
                 except harness.OpencodeError as err:
