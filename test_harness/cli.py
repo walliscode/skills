@@ -166,6 +166,8 @@ def main(argv=None):
                         workspace=workspace,
                         judge=lambda criteria, output: harness.grade_rubric(criteria, output, args.model),
                         session=session,
+                        skill_hash=harness.skill_hash(root / skill),
+                        n=config["runs"],
                     )
                 except harness.OpencodeError as err:
                     # opencode itself failed, so this is an error (exit 2), not a graded FAIL.
