@@ -5,12 +5,14 @@ import pytest
 from test_harness import report
 
 
-def record(passed=True, skill_loaded=True, cost: float | None = 0.1, checks=None, rubric=None, skill="s/canary", case="c", model="m", arm="with"):
+def record(passed=True, skill_loaded=True, cost: float | None = 0.1, checks=None, rubric=None, skill="s/canary", case="c", model="m", arm="with", skill_hash: str | None = "h1", n: int | None = 3):
     return {
         "skill": skill,
         "case": case,
         "model": model,
         "arm": arm,
+        "skill_hash": skill_hash,
+        "n": n,
         "skill_loaded": skill_loaded,
         "cost": cost,
         "checks": checks if checks is not None else [{"type": "output_contains", "value": "x", "passed": passed}],
@@ -138,6 +140,45 @@ def test_records_without_arm_or_skill_loaded_are_left_out():
 
     assert len(groups) == 1
     assert groups[0]["runs"] == 1
+
+
+def test_records_without_skill_hash_or_n_are_left_out():
+    without_hash = {k: v for k, v in record().items() if k != "skill_hash"}
+    without_n = {k: v for k, v in record().items() if k != "n"}
+
+    groups = report.summarize([("a", without_hash), ("b", without_n), ("new", record(passed=True))])
+
+    assert len(groups) == 1
+    assert groups[0]["runs"] == 1
+
+
+def test_records_with_null_skill_hash_or_n_are_left_out():
+    null_hash = record(skill_hash=None)
+    null_n = record(n=None)
+
+    groups = report.summarize([("a", null_hash), ("b", null_n), ("new", record(passed=True))])
+
+    assert len(groups) == 1
+    assert groups[0]["runs"] == 1
+
+
+def test_runs_with_different_skill_hashes_are_separate_groups():
+    groups = report.summarize(runs(record(skill_hash="h1"), record(skill_hash="h2")))
+
+    assert [g["skill_hash"] for g in groups] == ["h1", "h2"]
+    assert all(g["runs"] == 1 for g in groups)
+
+
+def test_runs_with_different_n_share_a_group_so_more_runs_improve_the_count():
+    group = only_group(record(n=3), record(n=5))
+
+    assert group["runs"] == 2
+
+
+def test_format_report_shows_skill_hash_in_the_header():
+    text = report.format_report(report.summarize(runs(record(skill_hash="abcdef123456", n=3))))
+
+    assert "hash abcdef12" in text
 
 
 def test_format_report_shows_k_of_n_costs_and_failing_runs():

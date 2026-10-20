@@ -68,7 +68,7 @@ def report_command(results_dir):
     """
     runs, skipped = report.split_current(report.load_records(results_dir))
     if skipped:
-        print(f"note: skipped {skipped} older result(s) without arm or skill_loaded", file=sys.stderr)
+        print(f"note: skipped {skipped} older result(s) without arm, skill_loaded, skill_hash or n", file=sys.stderr)
     print(report.format_report(report.summarize(runs)))
     return 0
 
@@ -82,7 +82,7 @@ def compare_command(results_dir):
     runs = report.load_records(results_dir)
     _, skipped = report.split_current(runs)
     if skipped:
-        print(f"note: skipped {skipped} older result(s) without arm or skill_loaded", file=sys.stderr)
+        print(f"note: skipped {skipped} older result(s) without arm, skill_loaded, skill_hash or n", file=sys.stderr)
     comparisons = compare.arm_comparisons(report.summarize(runs))
     print(compare.format_arm_comparison(comparisons))
     print()
