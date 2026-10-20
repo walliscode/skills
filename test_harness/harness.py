@@ -4,6 +4,7 @@
 
 # Standard library imports: JSON, env vars, regexes, file copying, subprocesses,
 # temp directories, timestamps and paths.
+import hashlib
 import json
 import os
 import re
@@ -91,6 +92,29 @@ def evals_path(skill_dir):
     """
     # Build the path to evals.yaml inside the skill's evals folder.
     return skill_dir / "evals" / "evals.yaml"
+
+
+def skill_hash(skill_dir):
+    """@brief Hash a skill's content, so a change to it starts a new run group.
+
+    Covers `SKILL.md` and every file under `evals/fixtures/`. The eval cases file is left out,
+    since editing a case's checks does not change what the skill does.
+
+    @param skill_dir Path to the skill directory, e.g. `engineering/tdd`.
+    @return Hex SHA-256 digest of the skill's files, with their relative paths.
+    """
+    files = [skill_dir / "SKILL.md"] if (skill_dir / "SKILL.md").is_file() else []
+    fixtures = skill_dir / "evals" / "fixtures"
+    if fixtures.is_dir():
+        files += sorted(path for path in fixtures.rglob("*") if path.is_file())
+    digest = hashlib.sha256()
+    for path in files:
+        # The path goes in too, so moving a file changes the hash even if its bytes don't.
+        digest.update(path.relative_to(skill_dir).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def discover_skills(root):
@@ -325,7 +349,17 @@ def grade_rubric(criteria, output, model):
 
 
 def build_record(
-    skill, case_id, model, case, events, arm="with", workspace=None, judge=None, session=None
+    skill,
+    case_id,
+    model,
+    case,
+    events,
+    arm="with",
+    workspace=None,
+    judge=None,
+    session=None,
+    skill_hash=None,
+    n=None,
 ):
     """@brief Turn one opencode run into the stored result record.
 
@@ -340,6 +374,8 @@ def build_record(
     @param workspace Directory the run worked in, for `file_contains` checks.
     @param judge Callable `(criteria, output) -> bool` used for the rubric, or None to skip it.
     @param session The dict from export_session() for this run, or None if it is unavailable.
+    @param skill_hash The hash from skill_hash() at run time, or None if not known.
+    @param n The `runs` value from the config this run was part of, or None if not known.
     @return The result record dict, ready for write_result().
     """
     # Pull out the reply text and the skills that loaded.
@@ -356,6 +392,8 @@ def build_record(
     usage = session_usage(session)
     return {
         "skill": skill,
+        "skill_hash": skill_hash,
+        "n": n,
         "case": case_id,
         "model": model,
         "arm": arm,
