@@ -6,6 +6,9 @@ Reads the same stored records as the report command and groups them the same way
 
 from test_harness import report
 
+# Width, in characters, of a full bar in the over-time chart.
+BAR_WIDTH = 20
+
 
 def arm_comparisons(groups):
     """@brief Pair each skill, case and model's with group with its without group.
@@ -79,14 +82,22 @@ def run_timelines(runs):
 
 
 def format_timelines(timelines):
-    """@brief Turn the timelines into the text the compare command prints.
+    """@brief Turn the timelines into the bar chart the compare command prints.
+
+    Each group gets a header with its pass count, then one bar per run in time order.
+    A passing run is a full bar and a failing run is an empty bar, so the pass rate
+    shows as the proportion of full bars over time.
 
     @param timelines Dict from run_timelines().
-    @return One line per group, with P or F for each run in order and the pass count.
+    @return One block per group: a header line, then a line per run with its bar and outcome.
     """
-    lines = []
+    blocks = []
     for (skill, case, model, arm, skill_hash), runs in sorted(timelines.items()):
-        marks = " ".join("P" if passed else "F" for _, passed in runs)
         passes = sum(1 for _, passed in runs if passed)
-        lines.append(f"{skill} {case} {model} ({arm}) hash {skill_hash[:8]}\n  {marks}  ({passes}/{len(runs)})")
-    return "\n\n".join(lines)
+        lines = [f"{skill} {case} {model} ({arm}) hash {skill_hash[:8]} ({passes}/{len(runs)})"]
+        for index, (_, passed) in enumerate(runs, start=1):
+            bar = "█" * BAR_WIDTH if passed else ""
+            outcome = "P" if passed else "F"
+            lines.append(f"  {index:>3} {bar:<{BAR_WIDTH}} {outcome}")
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)

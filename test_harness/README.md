@@ -69,7 +69,7 @@ Prints, for each skill, case, model, and arm: pass count and rate, pass variance
 python -m test_harness compare
 ```
 
-Prints the with and without arms side by side for each skill, case, and model, with the pass-rate difference in points. Then it lists each group's runs in time order as `P` (pass) or `F` (fail).
+Prints the with and without arms side by side for each skill, case, and model, with the pass-rate difference in points. Then it draws each group's runs over time as a bar chart: one bar per run in time order, full for a pass and empty for a fail, followed by `P` or `F`.
 
 ## Which command do I use?
 
