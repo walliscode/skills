@@ -51,6 +51,71 @@ def test_session_usage_records_nulls_for_fields_the_export_lacks():
     assert usage == {"cost": 0.1, "tokens": {"input": None, "output": None, "cached": None}}
 
 
+MODEL = {"id": "claude-haiku-5.5", "providerID": "github-copilot", "variant": "default"}
+MULTI_STEP_EXPORT = {
+    "info": {
+        "id": "ses_multi",
+        "model": MODEL,
+        "cost": 0.0002665,
+        "tokens": {"input": 6, "output": 175, "reasoning": 60, "cache": {"read": 14840, "write": 4568}},
+    },
+    "messages": [
+        {"type": "user", "text": "tell me the canary word"},
+        {
+            "type": "assistant",
+            "model": MODEL,
+            "cost": 0.00010755,
+            "tokens": {"input": 4, "output": 50, "reasoning": 60, "cache": {"read": 5215, "write": 4410}},
+        },
+        {
+            "type": "assistant",
+            "model": MODEL,
+            "cost": 0.00015895,
+            "tokens": {"input": 2, "output": 125, "reasoning": 0, "cache": {"read": 9625, "write": 158}},
+        },
+        {"type": "outcome"},
+    ],
+}
+
+
+def test_session_usage_of_multi_step_export_reads_session_totals():
+    usage = harness.session_usage(MULTI_STEP_EXPORT)
+
+    assert usage == {"cost": 0.0002665, "tokens": {"input": 6, "output": 175, "cached": 14840}}
+
+
+def test_session_usage_uses_session_totals_not_the_sum_of_messages():
+    export = {
+        **MULTI_STEP_EXPORT,
+        "info": {**MULTI_STEP_EXPORT["info"], "tokens": {"input": 99, "output": 1, "cache": {"read": 2}}},
+    }
+
+    assert harness.session_usage(export)["tokens"] == {"input": 99, "output": 1, "cached": 2}
+
+
+def test_multi_step_fixture_totals_match_their_messages():
+    steps = [message for message in MULTI_STEP_EXPORT["messages"] if message["type"] == "assistant"]
+    totals = MULTI_STEP_EXPORT["info"]
+
+    assert sum(step["tokens"]["input"] for step in steps) == totals["tokens"]["input"]
+    assert sum(step["tokens"]["output"] for step in steps) == totals["tokens"]["output"]
+    assert sum(step["tokens"]["cache"]["read"] for step in steps) == totals["tokens"]["cache"]["read"]
+    assert sum(step["cost"] for step in steps) == pytest.approx(totals["cost"])
+
+
+def test_session_usage_records_nulls_when_cost_and_tokens_are_missing():
+    assert harness.session_usage({"info": {"id": "ses_abc"}}) == {
+        "cost": None,
+        "tokens": {"input": None, "output": None, "cached": None},
+    }
+
+
+def test_session_usage_records_nulls_for_tokens_without_cache():
+    usage = harness.session_usage({"info": {"cost": 0.1, "tokens": {"input": 3, "output": 4}}})
+
+    assert usage == {"cost": 0.1, "tokens": {"input": 3, "output": 4, "cached": None}}
+
+
 def test_export_session_raises_with_stderr_when_opencode_fails(monkeypatch):
     def fake_run(*args, **kwargs):
         return subprocess.CompletedProcess(args, 1, stdout="", stderr="boom\n")
