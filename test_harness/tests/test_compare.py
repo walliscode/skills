@@ -103,17 +103,30 @@ def test_run_timelines_skip_records_the_report_cannot_use():
     assert compare.run_timelines([("old", legacy)]) == {}
 
 
-def test_format_timelines_shows_each_run_in_order_and_the_pass_count():
+def test_format_timelines_draws_one_bar_per_run_in_order_showing_running_pass_rate():
     runs = [
         ("20261018T100000Z__a", record(passed=True)),
         ("20261019T100000Z__b", record(passed=False)),
         ("20261020T100000Z__c", record(passed=True)),
     ]
 
-    text = compare.format_timelines(compare.run_timelines(runs))
+    lines = compare.format_timelines(compare.run_timelines(runs)).splitlines()
 
-    assert "s/canary c m (with)" in text
-    assert "P F P  (2/3)" in text
+    assert lines[0].startswith("s/canary c m (with)")
+    bars = lines[1:]
+    assert [line.count("█") for line in bars] == [20, 10, 13]
+    assert [line.split()[-2] for line in bars] == ["P", "F", "P"]
+    assert "66.7%" in bars[2]
+
+
+def test_format_timelines_shows_an_empty_bar_when_the_first_run_fails():
+    runs = [("20261018T100000Z__a", record(passed=False))]
+
+    lines = compare.format_timelines(compare.run_timelines(runs)).splitlines()
+
+    assert lines[1].count("█") == 0
+    assert "0.0%" in lines[1]
+
 
 
 def test_compare_command_prints_both_sections(tmp_path, monkeypatch, capsys):
@@ -131,4 +144,4 @@ def test_compare_command_prints_both_sections(tmp_path, monkeypatch, capsys):
     assert code == 0
     out = capsys.readouterr().out
     assert "with 1/1 (100.0%)" in out
-    assert "P  (1/1)" in out
+    assert "████████████████████ P 100.0%" in out
