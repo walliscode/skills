@@ -15,16 +15,21 @@ DEFAULT_DEST = Path.home() / ".agents" / "skills"
 
 
 def install(repo_root: Path, dest: Path) -> dict[str, str]:
+    """Copy each built skill into dest and return {name: status}."""
     report = {}
     for built in sorted((repo_root / "skills").glob("*/SKILL.md")):
         name = built.parent.name
         target = dest / name
+        # Ownership rule: an existing folder is ours only if it carries the marker.
+        # Anything else is someone else's skill, so it is never overwritten.
         if target.exists() and not (target / MARKER).exists():
             report[name] = "skipped: not installed by this script"
             continue
+        # Decide the status before copying, because the copy creates the folder.
         status = "updated" if target.exists() else "installed"
         target.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(built, target / "SKILL.md")
+        # Write the marker after the copy so a folder is only claimed once it has content.
         (target / MARKER).write_text("installed by scripts/install_skills.py\n")
         report[name] = status
     return report
