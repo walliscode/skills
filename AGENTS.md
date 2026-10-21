@@ -12,6 +12,8 @@ Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `
 
 Every PR body must include a diagram of the workflow or call chain that the PR adds or modifies (Mermaid, or a call tree). Use the `pr` skill's template.
 
+Where the PR adds non-obvious logic (branching rules, ordering, ownership or safety checks), also include short pseudocode for it in the Summary.
+
 ### Domain docs
 
 Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

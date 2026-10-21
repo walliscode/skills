@@ -27,15 +27,22 @@ def load_spec(spec: Path) -> dict:
 
 
 def build_skill(spec: Path, repo_root: Path) -> str:
+    """Return the full SKILL.md text for a spec. Pure: reads files, writes nothing."""
     data = load_spec(spec)
     blocks = []
     for path in data["units"]:
+        # Unit paths are repo-relative so the marker shows where the text came from.
         source = repo_root / path
         if not source.is_file():
             raise BuildError(f"{spec.parent.name}: unit not found: {path}")
+        # Normalise each unit to exactly one trailing newline so output is stable
+        # whatever the editor left at the end of the file.
         content = source.read_text().rstrip("\n") + "\n"
         blocks.append(f"<!-- source: {path} -->\n{content}")
+    # Frontmatter is generated from the spec, not copied, so name/description
+    # live in one place.
     header = f"---\nname: {data['name']}\ndescription: {data['description']}\n---\n\n"
+    # Units are joined with a blank line; the list order in the spec is the output order.
     return header + "\n".join(blocks)
 
 
@@ -50,6 +57,7 @@ def write_skill(spec: Path, repo_root: Path) -> Path:
 
 
 def is_fresh(spec: Path, repo_root: Path) -> bool:
+    # Rebuild in memory and compare, so a stale or missing SKILL.md both count as not fresh.
     built = build_skill(spec, repo_root)
     out = output_path(spec)
     return out.is_file() and out.read_text() == built
@@ -70,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     status = 0
     for name in args.specs:
         spec = (repo_root / name).resolve()
+        # One bad spec is reported and the loop continues; any failure makes the exit code 1.
         try:
             if args.check:
                 if not is_fresh(spec, repo_root):
