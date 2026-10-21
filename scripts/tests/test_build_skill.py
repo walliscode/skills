@@ -44,6 +44,21 @@ def test_missing_include_fails_the_build(tmp_path):
         build_unit(unit, tmp_path)
 
 
+def test_unit_without_skill_md_fails_the_build(tmp_path):
+    unit = make_repo(tmp_path)
+    (unit / "SKILL.md").unlink()
+
+    with pytest.raises(BuildError, match="no SKILL.md"):
+        build_unit(unit, tmp_path)
+
+
+def test_cli_reports_missing_unit_as_error_not_traceback(tmp_path, capsys):
+    make_repo(tmp_path)
+
+    assert main(["--check", "--repo-root", str(tmp_path), "units/typo"]) == 1
+    assert "error:" in capsys.readouterr().err
+
+
 def test_write_skill_puts_output_under_skills_folder(tmp_path):
     unit = make_repo(tmp_path)
 

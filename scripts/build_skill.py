@@ -19,7 +19,10 @@ class BuildError(Exception):
 
 
 def build_unit(unit_dir: Path, repo_root: Path) -> str:
-    lines = (unit_dir / "SKILL.md").read_text().splitlines(keepends=True)
+    skill = unit_dir / "SKILL.md"
+    if not skill.is_file():
+        raise BuildError(f"{unit_dir.name}: no SKILL.md in {unit_dir}")
+    lines = skill.read_text().splitlines(keepends=True)
     out = []
     for line in lines:
         match = INCLUDE.match(line)
@@ -49,8 +52,9 @@ def write_skill(unit_dir: Path, repo_root: Path) -> Path:
 
 
 def is_fresh(unit_dir: Path, repo_root: Path) -> bool:
+    built = build_unit(unit_dir, repo_root)
     out = output_path(unit_dir, repo_root)
-    return out.is_file() and out.read_text() == build_unit(unit_dir, repo_root)
+    return out.is_file() and out.read_text() == built
 
 
 def main(argv: list[str] | None = None) -> int:
