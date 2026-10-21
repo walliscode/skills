@@ -1,65 +1,63 @@
-"""Build a combined skill from one unit directory.
+"""Build a combined skill from a skill spec.
 
-A unit is a directory under ``units/`` holding a ``SKILL.md`` whose lines of
-the form ``@include <path>`` are replaced by the file at ``<path>`` (relative to
-the repo root), preceded by a ``<!-- source: <path> -->`` marker. The result is
-written to ``skills/<unit name>/SKILL.md``.
+A skill spec is ``skills/<name>/skill.yaml`` with ``name``, ``description`` and
+an ordered ``units`` list of markdown files (paths relative to the repo root).
+Each unit is copied in order, preceded by a ``<!-- source: <path> -->`` marker.
+The result is written to ``skills/<name>/SKILL.md``.
 """
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
-INCLUDE = re.compile(r"^@include (\S+)\s*$")
+import yaml
 
 
 class BuildError(Exception):
     pass
 
 
-def build_unit(unit_dir: Path, repo_root: Path) -> str:
-    skill = unit_dir / "SKILL.md"
-    if not skill.is_file():
-        raise BuildError(f"{unit_dir.name}: no SKILL.md in {unit_dir}")
-    lines = skill.read_text().splitlines(keepends=True)
-    out = []
-    for line in lines:
-        match = INCLUDE.match(line)
-        if not match:
-            out.append(line)
-            continue
-        path = match.group(1)
+def load_spec(spec: Path) -> dict:
+    if not spec.is_file():
+        raise BuildError(f"skill spec not found: {spec}")
+    data = yaml.safe_load(spec.read_text()) or {}
+    if not data.get("units"):
+        raise BuildError(f"{spec}: no units listed")
+    return data
+
+
+def build_skill(spec: Path, repo_root: Path) -> str:
+    data = load_spec(spec)
+    blocks = []
+    for path in data["units"]:
         source = repo_root / path
         if not source.is_file():
-            raise BuildError(f"{unit_dir.name}: include not found: {path}")
-        content = source.read_text()
-        if content and not content.endswith("\n"):
-            content += "\n"
-        out.append(f"<!-- source: {path} -->\n{content}")
-    return "".join(out)
+            raise BuildError(f"{spec.parent.name}: unit not found: {path}")
+        content = source.read_text().rstrip("\n") + "\n"
+        blocks.append(f"<!-- source: {path} -->\n{content}")
+    header = f"---\nname: {data['name']}\ndescription: {data['description']}\n---\n\n"
+    return header + "\n".join(blocks)
 
 
-def output_path(unit_dir: Path, repo_root: Path) -> Path:
-    return repo_root / "skills" / unit_dir.name / "SKILL.md"
+def output_path(spec: Path) -> Path:
+    return spec.parent / "SKILL.md"
 
 
-def write_skill(unit_dir: Path, repo_root: Path) -> Path:
-    out = output_path(unit_dir, repo_root)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(build_unit(unit_dir, repo_root))
+def write_skill(spec: Path, repo_root: Path) -> Path:
+    out = output_path(spec)
+    out.write_text(build_skill(spec, repo_root))
     return out
 
 
-def is_fresh(unit_dir: Path, repo_root: Path) -> bool:
-    built = build_unit(unit_dir, repo_root)
-    out = output_path(unit_dir, repo_root)
+def is_fresh(spec: Path, repo_root: Path) -> bool:
+    built = build_skill(spec, repo_root)
+    out = output_path(spec)
     return out.is_file() and out.read_text() == built
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build a combined skill from unit directories.")
-    parser.add_argument("units", nargs="+", type=Path, help="unit directories")
+    parser = argparse.ArgumentParser(description="Build combined skills from skill specs.")
+    parser.add_argument("specs", nargs="+", type=Path, help="skill spec files")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument(
         "--check",
@@ -70,15 +68,15 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve()
 
     status = 0
-    for unit in args.units:
-        unit_dir = (repo_root / unit).resolve()
+    for name in args.specs:
+        spec = (repo_root / name).resolve()
         try:
             if args.check:
-                if not is_fresh(unit_dir, repo_root):
-                    print(f"stale: {output_path(unit_dir, repo_root).relative_to(repo_root)}", file=sys.stderr)
+                if not is_fresh(spec, repo_root):
+                    print(f"stale: {output_path(spec).relative_to(repo_root)}", file=sys.stderr)
                     status = 1
             else:
-                out = write_skill(unit_dir, repo_root)
+                out = write_skill(spec, repo_root)
                 print(f"built: {out.relative_to(repo_root)}")
         except BuildError as err:
             print(f"error: {err}", file=sys.stderr)

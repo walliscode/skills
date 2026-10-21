@@ -1,104 +1,105 @@
 import pytest
 
-from scripts.build_skill import BuildError, build_unit, is_fresh, main, write_skill
+from scripts.build_skill import BuildError, build_skill, is_fresh, main, write_skill
 
 
 def make_repo(root):
-    unit = root / "units" / "raii"
-    (unit / "parts").mkdir(parents=True)
-    (unit / "SKILL.md").write_text(
-        "---\nname: raii\ndescription: RAII guidance.\n---\n\n"
-        "@include units/raii/parts/intro.md\n\n"
-        "@include units/raii/parts/rules.md\n"
+    (root / "units").mkdir()
+    (root / "units" / "intro.md").write_text("Intro text.\n")
+    (root / "units" / "rules.md").write_text("Rule one.\nRule two.\n")
+    skill = root / "skills" / "raii"
+    skill.mkdir(parents=True)
+    (skill / "skill.yaml").write_text(
+        "name: raii\n"
+        "description: RAII guidance.\n"
+        "units:\n"
+        "  - units/intro.md\n"
+        "  - units/rules.md\n"
     )
-    (unit / "parts" / "intro.md").write_text("Intro text.\n")
-    (unit / "parts" / "rules.md").write_text("Rule one.\nRule two.\n")
-    return unit
+    return skill / "skill.yaml"
 
 
-def test_each_included_block_is_preceded_by_its_source_marker(tmp_path):
-    unit = make_repo(tmp_path)
+def test_each_unit_is_preceded_by_its_source_marker_in_order(tmp_path):
+    spec = make_repo(tmp_path)
 
-    built = build_unit(unit, tmp_path)
-
-    assert built == (
+    assert build_skill(spec, tmp_path) == (
         "---\nname: raii\ndescription: RAII guidance.\n---\n\n"
-        "<!-- source: units/raii/parts/intro.md -->\n"
+        "<!-- source: units/intro.md -->\n"
         "Intro text.\n\n"
-        "<!-- source: units/raii/parts/rules.md -->\n"
+        "<!-- source: units/rules.md -->\n"
         "Rule one.\nRule two.\n"
     )
 
 
 def test_building_twice_gives_identical_output(tmp_path):
-    unit = make_repo(tmp_path)
+    spec = make_repo(tmp_path)
 
-    assert build_unit(unit, tmp_path) == build_unit(unit, tmp_path)
-
-
-def test_missing_include_fails_the_build(tmp_path):
-    unit = make_repo(tmp_path)
-    (unit / "parts" / "rules.md").unlink()
-
-    with pytest.raises(BuildError, match="rules.md"):
-        build_unit(unit, tmp_path)
+    assert build_skill(spec, tmp_path) == build_skill(spec, tmp_path)
 
 
-def test_unit_without_skill_md_fails_the_build(tmp_path):
-    unit = make_repo(tmp_path)
-    (unit / "SKILL.md").unlink()
+def test_missing_unit_fails_the_build(tmp_path):
+    spec = make_repo(tmp_path)
+    (tmp_path / "units" / "rules.md").unlink()
 
-    with pytest.raises(BuildError, match="no SKILL.md"):
-        build_unit(unit, tmp_path)
-
-
-def test_cli_reports_missing_unit_as_error_not_traceback(tmp_path, capsys):
-    make_repo(tmp_path)
-
-    assert main(["--check", "--repo-root", str(tmp_path), "units/typo"]) == 1
-    assert "error:" in capsys.readouterr().err
+    with pytest.raises(BuildError, match="units/rules.md"):
+        build_skill(spec, tmp_path)
 
 
-def test_write_skill_puts_output_under_skills_folder(tmp_path):
-    unit = make_repo(tmp_path)
+def test_spec_without_units_fails_the_build(tmp_path):
+    spec = make_repo(tmp_path)
+    spec.write_text("name: raii\ndescription: RAII guidance.\n")
 
-    write_skill(unit, tmp_path)
+    with pytest.raises(BuildError, match="units"):
+        build_skill(spec, tmp_path)
+
+
+def test_write_skill_puts_output_next_to_its_spec(tmp_path):
+    spec = make_repo(tmp_path)
+
+    write_skill(spec, tmp_path)
 
     out = tmp_path / "skills" / "raii" / "SKILL.md"
-    assert out.read_text() == build_unit(unit, tmp_path)
+    assert out.read_text() == build_skill(spec, tmp_path)
 
 
 def test_freshness_passes_when_committed_output_matches_build(tmp_path):
-    unit = make_repo(tmp_path)
-    write_skill(unit, tmp_path)
+    spec = make_repo(tmp_path)
+    write_skill(spec, tmp_path)
 
-    assert is_fresh(unit, tmp_path)
+    assert is_fresh(spec, tmp_path)
 
 
-def test_freshness_fails_when_committed_output_is_stale(tmp_path):
-    unit = make_repo(tmp_path)
-    write_skill(unit, tmp_path)
-    (unit / "parts" / "intro.md").write_text("Changed intro.\n")
+def test_freshness_fails_when_a_unit_changed(tmp_path):
+    spec = make_repo(tmp_path)
+    write_skill(spec, tmp_path)
+    (tmp_path / "units" / "intro.md").write_text("Changed intro.\n")
 
-    assert not is_fresh(unit, tmp_path)
+    assert not is_fresh(spec, tmp_path)
 
 
 def test_freshness_fails_when_output_is_missing(tmp_path):
-    unit = make_repo(tmp_path)
+    spec = make_repo(tmp_path)
 
-    assert not is_fresh(unit, tmp_path)
+    assert not is_fresh(spec, tmp_path)
 
 
-def test_cli_builds_each_unit_given(tmp_path):
+def test_cli_builds_each_skill_spec_given(tmp_path):
     make_repo(tmp_path)
 
-    assert main(["--repo-root", str(tmp_path), "units/raii"]) == 0
+    assert main(["--repo-root", str(tmp_path), "skills/raii/skill.yaml"]) == 0
     assert (tmp_path / "skills" / "raii" / "SKILL.md").exists()
 
 
 def test_cli_check_exits_nonzero_when_stale(tmp_path):
-    unit = make_repo(tmp_path)
-    write_skill(unit, tmp_path)
-    (unit / "parts" / "intro.md").write_text("Changed intro.\n")
+    spec = make_repo(tmp_path)
+    write_skill(spec, tmp_path)
+    (tmp_path / "units" / "intro.md").write_text("Changed intro.\n")
 
-    assert main(["--check", "--repo-root", str(tmp_path), "units/raii"]) == 1
+    assert main(["--check", "--repo-root", str(tmp_path), "skills/raii/skill.yaml"]) == 1
+
+
+def test_cli_reports_missing_spec_as_error_not_traceback(tmp_path, capsys):
+    make_repo(tmp_path)
+
+    assert main(["--check", "--repo-root", str(tmp_path), "skills/typo/skill.yaml"]) == 1
+    assert "error:" in capsys.readouterr().err
