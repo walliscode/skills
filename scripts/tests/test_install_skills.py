@@ -1,6 +1,4 @@
-from scripts.install_skills import install, main
-
-MARKER = ".installed-by-install-skills"
+from scripts.install_skills import MARKER, install, main
 
 
 def make_built_skill(repo_root, name, body="Built body.\n"):
@@ -82,3 +80,11 @@ def test_cli_installs_into_given_destination(tmp_path, capsys):
     assert main(["--repo-root", str(src), "--dest", str(dest)]) == 0
     assert (dest / "raii" / "SKILL.md").exists()
     assert "raii: installed" in capsys.readouterr().out
+
+
+def test_cli_fails_when_no_built_skills(tmp_path, capsys):
+    src = tmp_path / "repo"
+    (src / "skills").mkdir(parents=True)
+
+    assert main(["--repo-root", str(src), "--dest", str(tmp_path / "user-skills")]) == 1
+    assert "no built skills found" in capsys.readouterr().out

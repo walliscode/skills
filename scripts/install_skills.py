@@ -41,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{name}: {status}")
     if not report:
         print("no built skills found")
+        return 1
     return 0
 
 

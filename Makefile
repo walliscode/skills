@@ -13,5 +13,5 @@ test-scripts:
 	$(PYTHON) -m pytest scripts/tests -q
 
 # Install built skills into the user-level folder (run by hand)
-install-skills:
+install-skills: check-skills
 	$(PYTHON) -m scripts.install_skills
