@@ -69,10 +69,15 @@ def test_freshness_passes_when_committed_output_matches_build(tmp_path):
     assert is_fresh(spec, tmp_path)
 
 
+def make_stale_repo(root):
+    spec = make_repo(root)
+    write_skill(spec, root)
+    (root / "units" / "intro.md").write_text("Changed intro.\n")
+    return spec
+
+
 def test_freshness_fails_when_a_unit_changed(tmp_path):
-    spec = make_repo(tmp_path)
-    write_skill(spec, tmp_path)
-    (tmp_path / "units" / "intro.md").write_text("Changed intro.\n")
+    spec = make_stale_repo(tmp_path)
 
     assert not is_fresh(spec, tmp_path)
 
@@ -91,9 +96,7 @@ def test_cli_builds_each_skill_spec_given(tmp_path):
 
 
 def test_cli_check_exits_nonzero_when_stale(tmp_path):
-    spec = make_repo(tmp_path)
-    write_skill(spec, tmp_path)
-    (tmp_path / "units" / "intro.md").write_text("Changed intro.\n")
+    make_stale_repo(tmp_path)
 
     assert main(["--check", "--repo-root", str(tmp_path), "skills/raii/skill.yaml"]) == 1
 

@@ -63,6 +63,19 @@ def is_fresh(spec: Path, repo_root: Path) -> bool:
     return out.is_file() and out.read_text() == built
 
 
+def check_spec(spec: Path, repo_root: Path) -> int:
+    if is_fresh(spec, repo_root):
+        return 0
+    print(f"stale: {output_path(spec).relative_to(repo_root)}", file=sys.stderr)
+    return 1
+
+
+def build_spec(spec: Path, repo_root: Path) -> int:
+    out = write_skill(spec, repo_root)
+    print(f"built: {out.relative_to(repo_root)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build combined skills from skill specs.")
     parser.add_argument("specs", nargs="+", type=Path, help="skill spec files")
@@ -74,19 +87,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     repo_root = args.repo_root.resolve()
+    run = check_spec if args.check else build_spec
 
     status = 0
     for name in args.specs:
         spec = (repo_root / name).resolve()
         # One bad spec is reported and the loop continues; any failure makes the exit code 1.
         try:
-            if args.check:
-                if not is_fresh(spec, repo_root):
-                    print(f"stale: {output_path(spec).relative_to(repo_root)}", file=sys.stderr)
-                    status = 1
-            else:
-                out = write_skill(spec, repo_root)
-                print(f"built: {out.relative_to(repo_root)}")
+            status |= run(spec, repo_root)
         except BuildError as err:
             print(f"error: {err}", file=sys.stderr)
             status = 1
