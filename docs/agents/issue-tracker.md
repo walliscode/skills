@@ -1,6 +1,8 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+Issues for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+
+**Current state:** no open issues. The C++ skill suite plan lives in `docs/cpp-skills/SPEC.md`, not in an issue.
 
 ## Conventions
 
