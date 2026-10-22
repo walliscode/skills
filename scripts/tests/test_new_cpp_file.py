@@ -62,6 +62,30 @@ def test_path_containing_dotdot_is_rejected(tmp_path):
     assert_rejected_without_files(tmp_path, "mylib/../other", "ParserState")
 
 
+def test_existing_hpp_blocks_both_files_and_leaves_it_unchanged(tmp_path):
+    folder = tmp_path / "mylib"
+    folder.mkdir()
+    (folder / "ParserState.hpp").write_text("original hpp\n")
+
+    result = run(tmp_path, "--dir", "mylib", "--name", "ParserState")
+
+    assert result.returncode != 0
+    assert (folder / "ParserState.hpp").read_text() == "original hpp\n"
+    assert not (folder / "ParserState.cpp").exists()
+
+
+def test_existing_cpp_blocks_both_files_and_leaves_it_unchanged(tmp_path):
+    folder = tmp_path / "mylib"
+    folder.mkdir()
+    (folder / "ParserState.cpp").write_text("original cpp\n")
+
+    result = run(tmp_path, "--dir", "mylib", "--name", "ParserState")
+
+    assert result.returncode != 0
+    assert (folder / "ParserState.cpp").read_text() == "original cpp\n"
+    assert not (folder / "ParserState.hpp").exists()
+
+
 def test_missing_arguments_exit_with_usage_error(tmp_path):
     result = run(tmp_path, "--name", "ParserState")
 

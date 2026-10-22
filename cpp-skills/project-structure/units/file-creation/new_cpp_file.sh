@@ -42,6 +42,10 @@ done
 
 namespace="${dir//\//::}"
 
+if [[ -e "$dir/$name.hpp" || -e "$dir/$name.cpp" ]]; then
+  fail "refusing to overwrite existing file in $dir for $name"
+fi
+
 banner() {
   cat <<EOF
 /**
