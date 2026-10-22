@@ -39,6 +39,29 @@ def test_both_files_have_banner_and_empty_headers_section(tmp_path):
         assert "// headers\n" in text
 
 
+def assert_rejected_without_files(tmp_path, dir_arg, name_arg):
+    result = run(tmp_path, "--dir", dir_arg, "--name", name_arg)
+
+    assert result.returncode != 0
+    assert not any(tmp_path.iterdir())
+
+
+def test_kebab_case_name_is_rejected(tmp_path):
+    assert_rejected_without_files(tmp_path, "mylib", "parse-headers")
+
+
+def test_directory_component_that_is_not_snake_case_is_rejected(tmp_path):
+    assert_rejected_without_files(tmp_path, "MyLib", "ParserState")
+
+
+def test_absolute_path_is_rejected(tmp_path):
+    assert_rejected_without_files(tmp_path, str(tmp_path / "mylib"), "ParserState")
+
+
+def test_path_containing_dotdot_is_rejected(tmp_path):
+    assert_rejected_without_files(tmp_path, "mylib/../other", "ParserState")
+
+
 def test_missing_arguments_exit_with_usage_error(tmp_path):
     result = run(tmp_path, "--name", "ParserState")
 

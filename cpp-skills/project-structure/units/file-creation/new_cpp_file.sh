@@ -19,7 +19,27 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$dir" && -n "$name" ]] || usage
 
+snake_re='^[a-z][a-z0-9]*(_[a-z0-9]+)*$'
+pascal_re='^[A-Z][a-zA-Z0-9]*$'
+
+fail() {
+  echo "new_cpp_file.sh: $1" >&2
+  exit 1
+}
+
+if [[ ! "$name" =~ $snake_re && ! "$name" =~ $pascal_re ]]; then
+  fail "name must be PascalCase or snake_case: $name"
+fi
+
+[[ "$dir" == /* ]] && fail "dir must be relative to the repo root: $dir"
+
 dir="${dir%/}"
+IFS='/' read -ra components <<< "$dir"
+for component in "${components[@]}"; do
+  [[ "$component" == ".." ]] && fail "dir must not contain '..': $dir"
+  [[ "$component" =~ $snake_re ]] || fail "dir component must be snake_case: $component"
+done
+
 namespace="${dir//\//::}"
 
 banner() {
