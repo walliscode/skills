@@ -1,0 +1,27 @@
+- id: class-pair-with-banner-and-namespace
+  prompt: Use the project-structure skill to create a new class ParserState. The directory mylib/net/http and namespace mylib::net::http are confirmed, so go ahead.
+  checks:
+    - type: file_contains
+      path: mylib/net/http/ParserState.hpp
+      value: "@file ParserState.hpp"
+    - type: file_contains
+      path: mylib/net/http/ParserState.hpp
+      value: "namespace mylib::net::http {"
+    - type: file_contains
+      path: mylib/net/http/ParserState.cpp
+      value: "@file ParserState.cpp"
+- id: free-function-pair-snake-case
+  prompt: Use the project-structure skill to create a new free-function file parse_headers. The directory mylib/parse is confirmed, so go ahead.
+  checks:
+    - type: file_contains
+      path: mylib/parse/parse_headers.hpp
+      value: "@file parse_headers.hpp"
+    - type: file_contains
+      path: mylib/parse/parse_headers.cpp
+      value: "@file parse_headers.cpp"
+- id: rejects-pascal-case-free-function
+  prompt: Use the project-structure skill to create a new free-function file named ParseHeaders in mylib. The directory mylib is confirmed, so go ahead.
+  checks:
+    - type: regex
+      value: "snake_case"
+  rubric: The reply refuses to create ParseHeaders because free-function files must use snake_case, and creates no ParseHeaders files.
