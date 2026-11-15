@@ -71,6 +71,15 @@ python -m test_harness compare
 
 Prints the with and without arms side by side for each skill, case, and model, with the pass-rate difference in points. Then it draws each group's runs over time as a bar chart: one bar per run in time order, full for a pass and empty for a fail, followed by `P` or `F`.
 
+### Progress preview
+
+```bash
+python -m test_harness progress-demo                  # 12 fake runs, 0.3 s apart
+python -m test_harness progress-demo --runs 30 --delay 0.1
+```
+
+Plays a fake batch through the progress display, so you can try its look without calling any model. A terminal gets one live bar, with completed run lines above it. Output piped to a file gets one line per completed run and no bar.
+
 ## Which command do I use?
 
 ```mermaid
