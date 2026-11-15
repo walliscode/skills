@@ -117,11 +117,10 @@ Each run writes `test_harness/results/<UTC timestamp>__<skill>__<case>__<arm>__<
 - `skills_loaded`, `skill_loaded`
 - `checks` (each with its `passed` flag), `rubric` (`null` if it did not run)
 - `passed`
+- `label`: `working-tree` for a run of uncommitted edits (see `--allow-dirty`), otherwise `null`
 - `session_id`, `timestamp`, `cost`, `tokens` (`input`, `output`, `cached`). These are `null` if the session export failed.
 
 Results are committed. Derived stats (pass rates, costs) are computed by `report` and `compare` from these files, not stored.
-
-Results from before arms and `skill_loaded` were recorded are skipped by `report` and `compare`, with a note on stderr.
 
 ## Limitations
 
