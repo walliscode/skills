@@ -14,15 +14,22 @@ def arm_comparisons(groups):
     """@brief Pair each skill, case and model's with group with its without group.
 
     Legacy groups pair only with legacy groups, so old runs are never compared with new ones.
-    A pair is inconclusive when either arm has fewer than `report.MIN_RUNS` runs.
+    A pair is inconclusive when either arm is missing or has fewer than `report.MIN_RUNS` runs.
 
     @param groups Group dicts from report.summarize().
     @return List of dicts with `skill`, `case`, `model`, `with`, `without`, `legacy` and `inconclusive`,
-            where a missing arm is None and `inconclusive` is False when an arm is missing.
+            where a missing arm is None.
     """
     paired = {}
     for group in groups:
-        key = (group["skill"], group["case"], group["model"], group["skill_hash"], group["label"] or "", group["legacy"])
+        key = (
+            group["skill"],
+            group["case"],
+            group["model"],
+            group["skill_hash"],
+            group["label"] or "",
+            group["legacy"],
+        )
         paired.setdefault(
             key,
             {
@@ -40,9 +47,7 @@ def arm_comparisons(groups):
     comparisons = [paired[key] for key in sorted(paired)]
     for item in comparisons:
         arms = [item["with"], item["without"]]
-        item["inconclusive"] = all(arm is not None for arm in arms) and any(
-            arm["runs"] < report.MIN_RUNS for arm in arms
-        )
+        item["inconclusive"] = any(arm is None or arm["runs"] < report.MIN_RUNS for arm in arms)
     return comparisons
 
 

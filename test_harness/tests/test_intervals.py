@@ -91,6 +91,23 @@ def test_comparison_is_conclusive_when_both_arms_have_five_runs():
     assert item["inconclusive"] is False
 
 
+def test_comparison_is_inconclusive_when_an_arm_is_missing():
+    [item] = arms(5, 5, 0, 0)
+
+    assert item["inconclusive"] is True
+
+
+def test_legacy_run_is_not_paired_with_a_new_run_of_the_same_arm():
+    legacy = record(arm="with")
+    legacy.pop("n")
+    comparisons = compare.arm_comparisons(
+        report.summarize(runs(legacy, record(arm="without")))
+    )
+
+    assert len(comparisons) == 2
+    assert all(item["with"] is None or item["without"] is None for item in comparisons)
+
+
 def test_compare_text_shows_intervals_and_the_inconclusive_flag():
     text = compare.format_arm_comparison(arms(3, 3, 0, 5))
 
