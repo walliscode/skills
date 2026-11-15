@@ -12,7 +12,7 @@ from test_harness import harness, progress
 ARMS = harness.ARM_NAMES
 
 
-def run_plan(root, plan, config, allow_dirty=False, skills_root=None, tag=None):
+def run_plan(root, plan, config, skills_root, allow_dirty=False, tag=None):
     """@brief Run every planned case under each arm, `runs` times each, and write one result per run.
 
     Stops at the first opencode error, keeping the results already written.
@@ -20,12 +20,11 @@ def run_plan(root, plan, config, allow_dirty=False, skills_root=None, tag=None):
     @param root Repo root that holds the results folder.
     @param plan List of `(skill, case_dict, model)` triples, in run order, from the CLI planner.
     @param config The run settings: `runs` (int), and `arms` (optional list, default both arms, in run order).
+    @param skills_root Folder the skill paths are read from. A version run passes its tag's worktree.
     @param allow_dirty True to run skills with uncommitted edits; their records are labelled `working-tree`.
-    @param skills_root Folder the skill paths are read from, or None for `root`. A version run passes its tag's worktree.
     @param tag The version tag the skills are read from, recorded on every run, or None.
     @return The process exit code: 0 if every "with" run passed, 1 if any failed, 2 for opencode or export errors.
     """
-    skills_root = root if skills_root is None else skills_root
     arms = config.get("arms", ARMS)
     # Sent verbatim. Each arm runs for every case: "with" leaves the skill
     # available, "without" denies it. Only the "with" arm decides the exit code,

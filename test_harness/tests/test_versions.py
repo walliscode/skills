@@ -72,6 +72,20 @@ def test_version_removes_its_worktree_afterwards(tmp_path, monkeypatch):
     assert listing.stdout.count("worktree ") == 1
 
 
+def test_version_removes_its_worktree_when_the_run_errors(tmp_path, monkeypatch):
+    root = project(tmp_path, monkeypatch)
+
+    def broken(prompt, model, cwd=None):
+        raise harness.OpencodeError("boom")
+
+    monkeypatch.setattr(harness, "run_opencode", broken)
+
+    assert cli.main(["--skill", "mod/skl", "--case", "c", "-m", MODEL, "--version", "0.1"]) == 2
+
+    listing = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=root, capture_output=True, text=True, check=True)
+    assert listing.stdout.count("worktree ") == 1
+
+
 def test_missing_tag_is_a_usage_error_and_runs_nothing(tmp_path, monkeypatch):
     root = project(tmp_path, monkeypatch)
 
@@ -79,7 +93,7 @@ def test_missing_tag_is_a_usage_error_and_runs_nothing(tmp_path, monkeypatch):
     assert records_in(root) == []
 
 
-def test_version_needs_a_single_skill(tmp_path, monkeypatch):
+def test_version_needs_skill_and_model(tmp_path, monkeypatch):
     root = project(tmp_path, monkeypatch)
 
     assert cli.main(["-m", MODEL, "--version", "0.1"]) == 2
