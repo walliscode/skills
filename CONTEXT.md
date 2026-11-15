@@ -1,6 +1,6 @@
 # Skill eval harness
 
-The language for measuring whether an agent skill changes agent behaviour. The harness runs eval cases against skills and reports results over time.
+The language for measuring whether an agent skill changes agent behaviour. The harness (called **skevals**) runs eval cases against skills and reports results over time.
 
 ## Language
 
@@ -30,3 +30,19 @@ A content hash of a skill's `SKILL.md` and fixtures. Editing a skill starts a ne
 **Pass**:
 A run passes only if the skill loaded and all checks passed.
 _Avoid_: Success
+
+**Version**:
+A released state of a skill, identified by a git tag of the form `<skill>-v<version>`, for example `pointers-v0.2`. Runs of a version are reproducible from git.
+_Avoid_: Release, snapshot
+
+**Working tree run**:
+A run of a skill with uncommitted edits. It is only allowed when explicitly requested, and it is labelled as such. It is not a version and cannot be reproduced from git.
+_Avoid_: Dirty run, draft
+
+**Config**:
+A committed file that lists the skills, versions, models, and arms to run in one invocation. Used to re-run older versions.
+_Avoid_: Matrix, manifest
+
+**Dashboard**:
+Static HTML reports generated from committed records, opened in a browser to browse skills, versions, and results.
+_Avoid_: Viewer, UI
