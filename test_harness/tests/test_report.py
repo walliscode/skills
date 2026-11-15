@@ -182,3 +182,18 @@ def test_report_command_prints_the_report_from_the_results_folder(tmp_path, monk
 
     assert code == 0
     assert "1/1" in capsys.readouterr().out
+
+
+def test_working_tree_runs_form_their_own_group():
+    groups = report.summarize(
+        [("a", record(passed=True)), ("b", {**record(passed=False), "label": "working-tree"})]
+    )
+
+    assert [group["label"] for group in groups] == [None, "working-tree"]
+    assert [group["runs"] for group in groups] == [1, 1]
+
+
+def test_format_report_marks_working_tree_groups():
+    text = report.format_report(report.summarize([("b", {**record(), "label": "working-tree"})]))
+
+    assert "working-tree" in text

@@ -80,7 +80,7 @@ def test_run_timelines_order_runs_by_their_file_name_stamp():
 
     timelines = compare.run_timelines(runs)
 
-    assert timelines[("s/canary", "c", "m", "with", "h1")] == [
+    assert timelines[("s/canary", "c", "m", "with", "h1", "")] == [
         ("20261018T100000Z__a", True),
         ("20261019T100000Z__b", False),
     ]
@@ -138,3 +138,26 @@ def test_compare_command_prints_both_sections(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "with 1/1 (100.0%)" in out
     assert "████████████████████ P" in out
+
+
+def test_arm_comparison_never_pairs_a_working_tree_arm_with_a_committed_arm():
+    groups = report.summarize(
+        [("a", record(arm="with")), ("b", {**record(arm="without"), "label": "working-tree"})]
+    )
+
+    pairs = compare.arm_comparisons(groups)
+
+    assert len(pairs) == 2
+    assert all(pair["with"] is None or pair["without"] is None for pair in pairs)
+
+
+def test_timelines_keep_working_tree_runs_separate():
+    runs = [("a", record(passed=True)), ("b", {**record(passed=False), "label": "working-tree"})]
+
+    assert len(compare.run_timelines(runs)) == 2
+
+
+def test_format_arm_comparison_marks_working_tree_groups():
+    groups = report.summarize([("b", {**record(arm="with"), "label": "working-tree"})])
+
+    assert "working-tree" in compare.format_arm_comparison(compare.arm_comparisons(groups))

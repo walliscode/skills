@@ -18,7 +18,7 @@ def arm_comparisons(groups):
     """
     paired = {}
     for group in groups:
-        key = (group["skill"], group["case"], group["model"], group["skill_hash"])
+        key = (group["skill"], group["case"], group["model"], group["skill_hash"], group["label"] or "")
         paired.setdefault(
             key,
             {
@@ -26,6 +26,7 @@ def arm_comparisons(groups):
                 "case": key[1],
                 "model": key[2],
                 "skill_hash": key[3],
+                "label": key[4] or None,
                 "with": None,
                 "without": None,
             },
@@ -60,7 +61,8 @@ def format_arm_comparison(comparisons):
         if item["with"] is not None and item["without"] is not None:
             delta = (item["with"]["pass_rate"] - item["without"]["pass_rate"]) * 100
             line += f"  delta {delta:+.1f} pts"
-        blocks.append(f"{item['skill']} {item['case']} {item['model']} hash {item['skill_hash'][:8]}\n{line}")
+        header = f"{item['skill']} {item['case']} {item['model']} hash {item['skill_hash'][:8]}"
+        blocks.append(f"{header}{report.label_suffix(item['label'])}\n{line}")
     return "\n\n".join(blocks)
 
 
@@ -70,11 +72,11 @@ def run_timelines(runs):
     Runs are ordered by their file name, which starts with the UTC timestamp.
 
     @param runs List of `(run_id, record)` pairs from report.load_records().
-    @return Dict of `(skill, case, model, arm, skill_hash)` to a list of `(run_id, passed)` in time order.
+    @return Dict of `(skill, case, model, arm, skill_hash, label)` to a list of `(run_id, passed)` in time order.
     """
     timelines = {}
     for run_id, record in sorted(runs):
-        key = (record["skill"], record["case"], record["model"], record["arm"], record["skill_hash"])
+        key = (record["skill"], record["case"], record["model"], record["arm"], record["skill_hash"], record.get("label") or "")
         timelines.setdefault(key, []).append((run_id, report.run_passed(record)))
     return timelines
 
@@ -90,9 +92,10 @@ def format_timelines(timelines):
     @return One block per group: a header line, then a line per run with its bar and outcome.
     """
     blocks = []
-    for (skill, case, model, arm, skill_hash), runs in sorted(timelines.items()):
+    for (skill, case, model, arm, skill_hash, label), runs in sorted(timelines.items(), key=lambda item: item[0][:5]):
         passes = sum(1 for _, passed in runs if passed)
-        lines = [f"{skill} {case} {model} ({arm}) hash {skill_hash[:8]} ({passes}/{len(runs)})"]
+        header = f"{skill} {case} {model} ({arm}) hash {skill_hash[:8]}{report.label_suffix(label)}"
+        lines = [f"{header} ({passes}/{len(runs)})"]
         for index, (_, passed) in enumerate(runs, start=1):
             bar = "█" * BAR_WIDTH if passed else ""
             outcome = "P" if passed else "F"
