@@ -31,6 +31,41 @@ def load_config(path=CONFIG_PATH):
     return yaml.safe_load(path.read_text())
 
 
+ARM_NAMES = ("with", "without")
+
+
+def load_batch_config(path):
+    """@brief Read a batch config file: the skills, models, arms and runs one invocation covers.
+
+    `arms` is optional and defaults to both arms. Every other field is required.
+
+    @param path Path to the batch config YAML.
+    @return Dict with `skills` (list of `<module>/<skill>`), `models` (list of `provider/model`),
+            `arms` (list of `with` and/or `without`) and `runs` (int, at least 1).
+    @throws ValueError With a message naming the bad field, if the file is missing, unreadable or invalid.
+    """
+    try:
+        body = yaml.safe_load(path.read_text())
+    except OSError as err:
+        raise ValueError(f"cannot read config {path}: {err.strerror}") from err
+    except yaml.YAMLError as err:
+        raise ValueError(f"config {path} is not valid YAML: {err}") from err
+    if not isinstance(body, dict):
+        raise ValueError(f"config {path} must be a mapping with skills, models and runs")
+
+    for field in ("skills", "models"):
+        value = body.get(field)
+        if not isinstance(value, list) or not value or not all(isinstance(item, str) and item for item in value):
+            raise ValueError(f"config '{field}' must be a non-empty list of strings")
+    runs = body.get("runs")
+    if not isinstance(runs, int) or isinstance(runs, bool) or runs < 1:
+        raise ValueError("config 'runs' must be an integer of at least 1")
+    arms = body.get("arms", list(ARM_NAMES))
+    if not isinstance(arms, list) or not arms or not all(arm in ARM_NAMES for arm in arms):
+        raise ValueError(f"config 'arms' must be a non-empty list of: {', '.join(ARM_NAMES)}")
+    return {"skills": body["skills"], "models": body["models"], "arms": arms, "runs": runs}
+
+
 def make_workspace(root, skill, case_id, parent=None, arm="with"):
     """@brief Build a fresh working directory for one run.
 
