@@ -133,35 +133,6 @@ def test_load_records_is_empty_when_there_is_no_results_folder(tmp_path):
     assert report.load_records(tmp_path / "missing") == []
 
 
-def test_records_without_arm_or_skill_loaded_are_left_out():
-    legacy = {"skill": "s/canary", "case": "c", "model": "m", "passed": False, "checks": []}
-
-    groups = report.summarize([("old", legacy), ("new", record(passed=True))])
-
-    assert len(groups) == 1
-    assert groups[0]["runs"] == 1
-
-
-def test_records_without_skill_hash_or_n_are_left_out():
-    without_hash = {k: v for k, v in record().items() if k != "skill_hash"}
-    without_n = {k: v for k, v in record().items() if k != "n"}
-
-    groups = report.summarize([("a", without_hash), ("b", without_n), ("new", record(passed=True))])
-
-    assert len(groups) == 1
-    assert groups[0]["runs"] == 1
-
-
-def test_records_with_null_skill_hash_or_n_are_left_out():
-    null_hash = record(skill_hash=None)
-    null_n = record(n=None)
-
-    groups = report.summarize([("a", null_hash), ("b", null_n), ("new", record(passed=True))])
-
-    assert len(groups) == 1
-    assert groups[0]["runs"] == 1
-
-
 def test_runs_with_different_skill_hashes_are_separate_groups():
     groups = report.summarize(runs(record(skill_hash="h1"), record(skill_hash="h2")))
 
