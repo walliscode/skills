@@ -6,6 +6,18 @@ Reads the same stored records as the report command and groups them the same way
 
 from test_harness import report
 
+
+def comparison_text(results_dir):
+    """@brief Build the with and without arm comparison, then each group's runs in time order.
+
+    @param results_dir Folder of result JSON files.
+    @return `(text, skipped)`: the formatted comparison and timelines, and how many older results were left out.
+    """
+    runs = report.load_records(results_dir)
+    _, skipped = report.split_current(runs)
+    comparisons = arm_comparisons(report.summarize(runs))
+    return f"{format_arm_comparison(comparisons)}\n\n{format_timelines(run_timelines(runs))}", skipped
+
 # Width, in characters, of a full bar in the over-time chart.
 BAR_WIDTH = 20
 
