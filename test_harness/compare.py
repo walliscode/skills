@@ -76,7 +76,7 @@ def run_timelines(runs):
     """
     timelines = {}
     for run_id, record in sorted(runs):
-        key = (record["skill"], record["case"], record["model"], record["arm"], record["skill_hash"], record.get("label") or "")
+        key = report.group_key(record)
         timelines.setdefault(key, []).append((run_id, report.run_passed(record)))
     return timelines
 
@@ -89,10 +89,10 @@ def format_timelines(timelines):
     shows as the proportion of full bars over time.
 
     @param timelines Dict from run_timelines().
-    @return One block per group: a header line, then a line per run with its bar and outcome.
+    @return One block per group: a header line (with the `working-tree` marker where it applies), then a line per run with its bar and outcome.
     """
     blocks = []
-    for (skill, case, model, arm, skill_hash, label), runs in sorted(timelines.items(), key=lambda item: item[0][:5]):
+    for (skill, case, model, arm, skill_hash, label), runs in sorted(timelines.items()):
         passes = sum(1 for _, passed in runs if passed)
         header = f"{skill} {case} {model} ({arm}) hash {skill_hash[:8]}{report.label_suffix(label)}"
         lines = [f"{header} ({passes}/{len(runs)})"]

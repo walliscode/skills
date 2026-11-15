@@ -161,3 +161,9 @@ def test_format_arm_comparison_marks_working_tree_groups():
     groups = report.summarize([("b", {**record(arm="with"), "label": "working-tree"})])
 
     assert "working-tree" in compare.format_arm_comparison(compare.arm_comparisons(groups))
+
+
+def test_format_timelines_marks_working_tree_groups():
+    runs = [("a", {**record(passed=True), "label": "working-tree"})]
+
+    assert "[working-tree]" in compare.format_timelines(compare.run_timelines(runs))

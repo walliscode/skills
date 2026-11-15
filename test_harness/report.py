@@ -50,6 +50,22 @@ def label_suffix(label):
     return f" [{label}]" if label else ""
 
 
+def group_key(record):
+    """@brief Build the key that groups a stored run with its like.
+
+    @param record A result dict from build_record().
+    @return `(skill, case, model, arm, skill_hash, label)`, with an empty string for a committed run's label.
+    """
+    return (
+        record["skill"],
+        record["case"],
+        record["model"],
+        record["arm"],
+        record["skill_hash"],
+        record.get("label") or "",
+    )
+
+
 def summarize(runs):
     """@brief Group runs by skill, case, model, arm, skill hash and label, and derive the stats for each group.
 
@@ -64,7 +80,7 @@ def summarize(runs):
     """
     groups = {}
     for run_id, record in runs:
-        key = (record["skill"], record["case"], record["model"], record["arm"], record["skill_hash"], record.get("label") or "")
+        key = group_key(record)
         groups.setdefault(key, []).append((run_id, record))
     return [_summarize_group(key, members) for key, members in sorted(groups.items())]
 
