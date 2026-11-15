@@ -34,13 +34,38 @@ def wilson_interval(passes, runs):
     return (max(0.0, centre - half), min(1.0, centre + half))
 
 
+def difference_interval(passes_a, runs_a, passes_b, runs_b):
+    """@brief Work out a 95% interval for the difference between two pass rates, A minus B.
+
+    Uses Newcombe's method: each side's Wilson interval combined into one interval for the difference.
+
+    @param passes_a Passing runs in group A.
+    @param runs_a Runs in group A.
+    @param passes_b Passing runs in group B.
+    @param runs_b Runs in group B.
+    @return `(low, high)` for A minus B, as fractions between -1 and 1, or None if either group has no runs.
+    """
+    interval_a = wilson_interval(passes_a, runs_a)
+    interval_b = wilson_interval(passes_b, runs_b)
+    if interval_a is None or interval_b is None:
+        return None
+    rate_a = passes_a / runs_a
+    rate_b = passes_b / runs_b
+    delta = rate_a - rate_b
+    low = delta - math.hypot(rate_a - interval_a[0], interval_b[1] - rate_b)
+    high = delta + math.hypot(interval_a[1] - rate_a, rate_b - interval_b[0])
+    return (low, high)
+
+
 def summary_text(results_dir):
     """@brief Build the report text for every stored run.
 
     @param results_dir Folder of result JSON files.
     @return The formatted report.
     """
-    return format_report(summarize(load_records(results_dir)))
+    runs = load_records(results_dir)
+    groups = summarize(runs)
+    return f"{format_report(groups)}\n\nModels per skill\n\n{format_model_table(model_table(groups))}"
 
 
 def load_records(results_dir):
@@ -181,6 +206,7 @@ def _summarize_group(key, members):
         "passes": passes,
         "pass_rate": pass_rate,
         "interval": wilson_interval(passes, runs),
+        "first_timestamp": min(record.get("timestamp", "") for _, record in members),
         "pass_variance": pass_variance,
         "cost_per_run": cost_per_run,
         "cost_per_passing_run": cost_per_passing_run,
@@ -197,6 +223,80 @@ def _money(value):
     @return The amount to four decimal places, or `null`.
     """
     return "null" if value is None else f"${value:.4f}"
+
+
+def model_table(groups):
+    """@brief Total the with-arm runs of each model for each skill, across its cases.
+
+    Rows are kept apart by skill hash, label and legacy status, so different skill content is never mixed.
+    Within a skill hash they are sorted by pass rate, best first.
+
+    @param groups Group dicts from summarize().
+    @return List of row dicts with `skill`, `skill_hash`, `label`, `legacy`, `model`, `cases` (groups
+            counted), `passes`, `runs`, `pass_rate`, `interval` and `cost_per_passing_run` (None when unknown).
+    """
+    totals = {}
+    for group in groups:
+        if group["arm"] != "with":
+            continue
+        key = (group["skill"], group["skill_hash"], group["label"], group["legacy"], group["model"])
+        totals.setdefault(key, []).append(group)
+
+    rows = []
+    for (skill, skill_hash, label, legacy, model), members in totals.items():
+        runs = sum(group["runs"] for group in members)
+        passes = sum(group["passes"] for group in members)
+        # One unknown cost makes the total unknown, as in summarize().
+        spend = None if any(group["cost_per_run"] is None for group in members) else sum(
+            group["cost_per_run"] * group["runs"] for group in members
+        )
+        rows.append(
+            {
+                "skill": skill,
+                "skill_hash": skill_hash,
+                "label": label,
+                "legacy": legacy,
+                "model": model,
+                "cases": len(members),
+                "passes": passes,
+                "runs": runs,
+                "pass_rate": passes / runs,
+                "interval": wilson_interval(passes, runs),
+                "cost_per_passing_run": None if spend is None or passes == 0 else spend / passes,
+            }
+        )
+    return sorted(
+        rows,
+        key=lambda row: (row["skill"], row["skill_hash"], row["label"] or "", row["legacy"], -row["pass_rate"], row["model"]),
+    )
+
+
+def format_model_table(rows):
+    """@brief Turn the model table rows into text, one block per skill hash.
+
+    @param rows List of rows from model_table().
+    @return The text, or an empty string when there are no rows.
+    """
+    blocks = []
+    current = None
+    lines = []
+    for row in rows:
+        header = (row["skill"], row["skill_hash"], row["label"], row["legacy"])
+        if header != current:
+            if lines:
+                blocks.append("\n".join(lines))
+            current = header
+            lines = [
+                f"{row['skill']} hash {row['skill_hash'][:8]}{label_suffix(row['label'])}{legacy_suffix(row['legacy'])}"
+            ]
+        lines.append(
+            f"  {row['model']}  pass {row['passes']}/{row['runs']} ({row['pass_rate'] * 100:.1f}%)"
+            f" {interval_text(row['interval'])}  cases {row['cases']}"
+            f"  cost/passing run {_money(row['cost_per_passing_run'])}"
+        )
+    if lines:
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
 
 
 def format_report(groups):
