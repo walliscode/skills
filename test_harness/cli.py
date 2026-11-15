@@ -5,9 +5,10 @@
 # Standard library: command-line parsing, printing errors.
 import argparse
 import sys
+import time
 from pathlib import Path
 
-from test_harness import compare, harness, report, run
+from test_harness import compare, harness, progress, report, run
 
 
 def plan_runs(root, skill_arg, case_arg, model, config):
@@ -88,6 +89,33 @@ def compare_command(results_dir):
     return 0
 
 
+def progress_demo_command(argv):
+    """@brief Play a fake batch through the progress display, so its look can be tried without model calls.
+
+    @param argv Arguments after `progress-demo`: `--runs` and `--delay`.
+    @return The process exit code, always 0.
+    """
+    parser = argparse.ArgumentParser(prog="test_harness progress-demo")
+    parser.add_argument("--runs", type=int, default=12, help="how many fake runs to play")
+    parser.add_argument("--delay", type=float, default=0.3, help="seconds to wait before each fake run")
+    args = parser.parse_args(argv)
+
+    bar = progress.Progress(args.runs)
+    for index in range(args.runs):
+        time.sleep(args.delay)
+        # Every third run fails, so the pass count moves at a realistic pace.
+        passed = index % 3 != 2
+        label = "PASS" if passed else "FAIL"
+        bar.completed(
+            f"{label} demo/skill case-{index + 1} (demo/model, with)",
+            skill="demo/skill",
+            model="demo/model",
+            passed=passed,
+        )
+    bar.close()
+    return 0
+
+
 def main(argv=None):
     """@brief Run eval cases for one or every skill, N times under each arm, and report each result.
 
@@ -109,6 +137,8 @@ def main(argv=None):
     @return The process exit code.
     """
     args_list = sys.argv[1:] if argv is None else argv
+    if args_list[:1] == ["progress-demo"]:
+        return progress_demo_command(args_list[1:])
     # Work from the repo root, found from the current directory, so any folder inside the repo works.
     root = find_root(Path.cwd())
     if root is None:

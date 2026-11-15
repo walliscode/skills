@@ -6,7 +6,7 @@
 import shutil
 import sys
 
-from test_harness import harness
+from test_harness import harness, progress
 
 # The two arms every case runs under, in order: skill available, then skill denied.
 ARMS = ("with", "without")
@@ -30,11 +30,13 @@ def run_plan(root, plan, model, config):
     all_passed = True
     # Starts as clear and is turned on by any run whose session export failed.
     export_failed = False
+    bar = progress.Progress(len(plan) * len(ARMS) * config["runs"])
     for skill, case in plan:
         skill_hash = harness.skill_hash(root / skill)
         for arm in ARMS:
             # Repeat each arm N times, from the config's `runs` value.
             for _ in range(config["runs"]):
+                bar.start(skill=skill, model=model)
                 # A new workspace for each run, so no run sees another's files.
                 workspace = harness.make_workspace(root, skill, case["id"], arm=arm)
                 try:
@@ -67,22 +69,28 @@ def run_plan(root, plan, model, config):
                     )
                 except harness.OpencodeError as err:
                     # opencode itself failed, so this is an error (exit 2), not a graded FAIL.
+                    bar.close()
                     print(f"error: {err}", file=sys.stderr)
                     return 2
                 finally:
                     # Always delete the workspace, even on error. Grading has already read the files.
                     shutil.rmtree(workspace, ignore_errors=True)
 
-                # Save the graded record to test_harness/results/ and get its path.
-                path = harness.write_result(root / "test_harness" / "results", record)
+                # Save the graded record to test_harness/results/.
+                harness.write_result(root / "test_harness" / "results", record)
 
                 passed = record["passed"]
                 if arm == "with":
                     # Only "with" runs affect the exit code. A single failure makes it 1.
                     all_passed = all_passed and passed
-                # Print one line per run, then where its result file was written.
-                print(f"{'PASS' if passed else 'FAIL'} {skill} {case['id']} ({model}, {arm})")
-                print(f"result: {path}")
+                # One line per completed run, shown above the live bar on a terminal.
+                bar.completed(
+                    f"{'PASS' if passed else 'FAIL'} {skill} {case['id']} ({model}, {arm})",
+                    skill=skill,
+                    model=model,
+                    passed=passed,
+                )
+    bar.close()
     # 2 if any session export failed, since that is an opencode error. Otherwise 0 if every "with" run passed, 1 if not.
     if export_failed:
         return 2
