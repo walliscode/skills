@@ -97,12 +97,6 @@ def test_run_timelines_split_runs_from_different_skill_hashes():
     assert len(timelines) == 2
 
 
-def test_run_timelines_skip_records_the_report_cannot_use():
-    legacy = {"skill": "s/canary", "case": "c", "model": "m", "passed": True, "checks": []}
-
-    assert compare.run_timelines([("old", legacy)]) == {}
-
-
 def test_format_timelines_draws_one_bar_per_run_in_order_full_for_pass_and_empty_for_fail():
     runs = [
         ("20261018T100000Z__a", record(passed=True)),

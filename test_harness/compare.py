@@ -67,15 +67,13 @@ def format_arm_comparison(comparisons):
 def run_timelines(runs):
     """@brief Order each group's runs by time, as pass or fail.
 
-    Runs are ordered by their file name, which starts with the UTC timestamp. Records the
-    report cannot use are left out.
+    Runs are ordered by their file name, which starts with the UTC timestamp.
 
     @param runs List of `(run_id, record)` pairs from report.load_records().
     @return Dict of `(skill, case, model, arm, skill_hash)` to a list of `(run_id, passed)` in time order.
     """
     timelines = {}
-    current, _ = report.split_current(runs)
-    for run_id, record in sorted(current):
+    for run_id, record in sorted(runs):
         key = (record["skill"], record["case"], record["model"], record["arm"], record["skill_hash"])
         timelines.setdefault(key, []).append((run_id, report.run_passed(record)))
     return timelines
@@ -107,9 +105,8 @@ def comparison_text(results_dir):
     """@brief Build the with and without arm comparison, then each group's runs in time order.
 
     @param results_dir Folder of result JSON files.
-    @return `(text, skipped)`: the formatted comparison and timelines, and how many older results were left out.
+    @return The formatted comparison and timelines.
     """
     runs = report.load_records(results_dir)
-    _, skipped = report.split_current(runs)
     comparisons = arm_comparisons(report.summarize(runs))
-    return f"{format_arm_comparison(comparisons)}\n\n{format_timelines(run_timelines(runs))}", skipped
+    return f"{format_arm_comparison(comparisons)}\n\n{format_timelines(run_timelines(runs))}"

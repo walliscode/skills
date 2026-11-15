@@ -13,10 +13,9 @@ def summary_text(results_dir):
     """@brief Build the report text for every stored run.
 
     @param results_dir Folder of result JSON files.
-    @return `(text, skipped)`: the formatted report, and how many older results were left out.
+    @return The formatted report.
     """
-    runs, skipped = split_current(load_records(results_dir))
-    return format_report(summarize(runs)), skipped
+    return format_report(summarize(load_records(results_dir)))
 
 
 def load_records(results_dir):
@@ -42,31 +41,10 @@ def run_passed(record):
     return bool(record["passed"] and record["skill_loaded"])
 
 
-def split_current(runs):
-    """@brief Separate the runs the report can use from older records it can't.
-
-    Records from before arms, skill-load tracking, skill hashes and N lack `arm`, `skill_loaded`,
-    `skill_hash` or `n`, so they can't be grouped or judged.
-
-    @param runs List of `(run_id, record)` pairs from load_records().
-    @return `(current, skipped)` where current is the usable pairs and skipped is how many were left out.
-    """
-    current = [
-        (run_id, record)
-        for run_id, record in runs
-        if "arm" in record
-        and "skill_loaded" in record
-        and record.get("skill_hash") is not None
-        and record.get("n") is not None
-    ]
-    return current, len(runs) - len(current)
-
-
 def summarize(runs):
     """@brief Group runs by skill, case, model, arm and skill hash, and derive the stats for each group.
 
     A change to a skill starts new groups, so its runs never mix with the old version's.
-    Records that are not current (see split_current()) are left out.
 
     @param runs List of `(run_id, record)` pairs from load_records().
     @return List of group dicts, sorted by group key. Each has the key fields, `runs`, `passes`,
@@ -75,7 +53,7 @@ def summarize(runs):
             Costs are None when any run in the group has no recorded cost, or when no run passed.
     """
     groups = {}
-    for run_id, record in split_current(runs)[0]:
+    for run_id, record in runs:
         key = (record["skill"], record["case"], record["model"], record["arm"], record["skill_hash"])
         groups.setdefault(key, []).append((run_id, record))
     return [_summarize_group(key, members) for key, members in sorted(groups.items())]

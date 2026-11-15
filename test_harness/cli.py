@@ -74,10 +74,7 @@ def report_command(results_dir):
     @param results_dir Folder of result JSON files.
     @return The process exit code, always 0.
     """
-    text, skipped = report.summary_text(results_dir)
-    if skipped:
-        print(f"note: skipped {skipped} older result(s) without arm, skill_loaded, skill_hash or n", file=sys.stderr)
-    print(text)
+    print(report.summary_text(results_dir))
     return 0
 
 
@@ -87,10 +84,7 @@ def compare_command(results_dir):
     @param results_dir Folder of result JSON files.
     @return The process exit code, always 0.
     """
-    text, skipped = compare.comparison_text(results_dir)
-    if skipped:
-        print(f"note: skipped {skipped} older result(s) without arm, skill_loaded, skill_hash or n", file=sys.stderr)
-    print(text)
+    print(compare.comparison_text(results_dir))
     return 0
 
 
