@@ -9,7 +9,7 @@ import sys
 from test_harness import harness, progress
 
 # The two arms, in order: skill available, then skill denied.
-ARMS = ("with", "without")
+ARMS = harness.ARM_NAMES
 
 
 def run_plan(root, plan, config, allow_dirty=False):

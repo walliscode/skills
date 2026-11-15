@@ -117,7 +117,7 @@ def test_config_refuses_model_not_allowed_by_a_case_before_any_run(tmp_path, mon
     assert records_in(root) == []
 
 
-def test_config_refuses_skill_without_evals(tmp_path, monkeypatch):
+def test_config_refuses_skill_missing_evals(tmp_path, monkeypatch):
     root = project(tmp_path, monkeypatch)
     config = write_batch(root, {"skills": ["mod/missing"], "models": [MODEL], "runs": 1})
 
