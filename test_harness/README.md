@@ -64,6 +64,8 @@ python -m test_harness report
 
 Prints, for each skill, case, model, and arm: pass count and rate, pass variance, cost per run, cost per passing run, checks passed, rubric verdicts, and the failing run IDs. Cost per passing run is `null` when nothing passed, and also when a run has no recorded cost.
 
+Groups of runs of uncommitted edits show a `[working-tree]` marker in the report and compare output. They never share a group with committed runs.
+
 ### Compare
 
 ```bash

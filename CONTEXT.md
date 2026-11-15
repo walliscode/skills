@@ -21,7 +21,7 @@ One execution of one case, in a fresh session, on one model, under one arm.
 _Avoid_: Trial, attempt
 
 **Run group**:
-The runs that share a skill, case, model, arm, and skill hash. N is the number of runs per group, so changing N adds runs to the group rather than starting a new one. Results are reported per group as k/N.
+The runs that share a skill, case, model, arm, skill hash, and label (`working-tree` or none). Runs of uncommitted edits never share a group with committed runs. N is the number of runs per group, so changing N adds runs to the group rather than starting a new one. Results are reported per group as k/N.
 _Avoid_: Batch, set
 
 **Skill hash**:

@@ -41,10 +41,36 @@ def run_passed(record):
     return bool(record["passed"] and record["skill_loaded"])
 
 
+def label_suffix(label):
+    """@brief Describe a group's label for a header line.
+
+    @param label `working-tree` for a run of uncommitted edits, or None.
+    @return A leading-space marker such as ` [working-tree]`, or an empty string.
+    """
+    return f" [{label}]" if label else ""
+
+
+def group_key(record):
+    """@brief Build the key that groups a stored run with its like.
+
+    @param record A result dict from build_record().
+    @return `(skill, case, model, arm, skill_hash, label)`, with an empty string for a committed run's label.
+    """
+    return (
+        record["skill"],
+        record["case"],
+        record["model"],
+        record["arm"],
+        record["skill_hash"],
+        record.get("label") or "",
+    )
+
+
 def summarize(runs):
-    """@brief Group runs by skill, case, model, arm and skill hash, and derive the stats for each group.
+    """@brief Group runs by skill, case, model, arm, skill hash and label, and derive the stats for each group.
 
     A change to a skill starts new groups, so its runs never mix with the old version's.
+    Runs of uncommitted edits (label `working-tree`) never mix with committed runs.
 
     @param runs List of `(run_id, record)` pairs from load_records().
     @return List of group dicts, sorted by group key. Each has the key fields, `runs`, `passes`,
@@ -54,7 +80,7 @@ def summarize(runs):
     """
     groups = {}
     for run_id, record in runs:
-        key = (record["skill"], record["case"], record["model"], record["arm"], record["skill_hash"])
+        key = group_key(record)
         groups.setdefault(key, []).append((run_id, record))
     return [_summarize_group(key, members) for key, members in sorted(groups.items())]
 
@@ -62,11 +88,12 @@ def summarize(runs):
 def _summarize_group(key, members):
     """@brief Derive the stats for one group of runs.
 
-    @param key `(skill, case, model, arm, skill_hash)` tuple.
+    @param key `(skill, case, model, arm, skill_hash, label)` tuple.
     @param members List of `(run_id, record)` pairs in the group.
     @return The group dict described in summarize().
     """
-    skill, case, model, arm, skill_hash = key
+    skill, case, model, arm, skill_hash, label = key
+    label = label or None
     runs = len(members)
     passes = sum(1 for _, record in members if run_passed(record))
     pass_rate = passes / runs
@@ -90,6 +117,7 @@ def _summarize_group(key, members):
         "model": model,
         "arm": arm,
         "skill_hash": skill_hash,
+        "label": label,
         "runs": runs,
         "passes": passes,
         "pass_rate": pass_rate,
@@ -121,7 +149,7 @@ def format_report(groups):
     for group in groups:
         lines = [
             f"{group['skill']} {group['case']} {group['model']} ({group['arm']})"
-            f" hash {group['skill_hash'][:8]}",
+            f" hash {group['skill_hash'][:8]}{label_suffix(group['label'])}",
             f"  pass {group['passes']}/{group['runs']} ({group['pass_rate'] * 100:.1f}%)"
             f"  pass variance {group['pass_variance']:.3f}",
             f"  cost/run {_money(group['cost_per_run'])}"
