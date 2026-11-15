@@ -43,3 +43,12 @@ def test_progress_demo_runs_without_a_model(capsys):
 
     assert code == 0
     assert len(capsys.readouterr().out.splitlines()) == 4
+
+
+def test_start_shows_the_run_in_progress_on_the_bar():
+    out = io.StringIO()
+    bar = progress.Progress(total=2, stream=out, tty=True)
+
+    bar.start(skill="s/other", model="m2")
+
+    assert out.getvalue().endswith("s/other m2")

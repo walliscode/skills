@@ -45,6 +45,17 @@ class Progress:
         if self.tty:
             self._draw()
 
+    def start(self, skill, model):
+        """@brief Show the run about to start on the bar.
+
+        @param skill The run's skill.
+        @param model The run's model.
+        """
+        self.skill = skill
+        self.model = model
+        if self.tty:
+            self._draw()
+
     def completed(self, line, skill, model, passed):
         """@brief Record one finished run and write its line.
 

@@ -36,6 +36,7 @@ def run_plan(root, plan, model, config):
         for arm in ARMS:
             # Repeat each arm N times, from the config's `runs` value.
             for _ in range(config["runs"]):
+                bar.start(skill=skill, model=model)
                 # A new workspace for each run, so no run sees another's files.
                 workspace = harness.make_workspace(root, skill, case["id"], arm=arm)
                 try:
