@@ -12,7 +12,7 @@ from test_harness import harness, progress
 ARMS = ("with", "without")
 
 
-def run_plan(root, plan, model, config):
+def run_plan(root, plan, model, config, allow_dirty=False):
     """@brief Run every planned case under both arms, `runs` times each, and write one result per run.
 
     Stops at the first opencode error, keeping the results already written.
@@ -21,6 +21,7 @@ def run_plan(root, plan, model, config):
     @param plan List of `(skill, case_dict)` pairs, in run order, from the CLI planner.
     @param model The `provider/model` string passed to opencode.
     @param config The loaded harness config.
+    @param allow_dirty True to run skills with uncommitted edits; their records are labelled `working-tree`.
     @return The process exit code: 0 if every "with" run passed, 1 if any failed, 2 for opencode or export errors.
     """
     # Sent verbatim. Both arms run for every case: "with" leaves the skill
@@ -33,6 +34,7 @@ def run_plan(root, plan, model, config):
     bar = progress.Progress(len(plan) * len(ARMS) * config["runs"])
     for skill, case in plan:
         skill_hash = harness.skill_hash(root / skill)
+        label = "working-tree" if allow_dirty and harness.skill_is_dirty(root, skill) else None
         for arm in ARMS:
             # Repeat each arm N times, from the config's `runs` value.
             for _ in range(config["runs"]):
@@ -66,6 +68,7 @@ def run_plan(root, plan, model, config):
                         skill_hash=skill_hash,
                         n=config["runs"],
                         export_error=export_error,
+                        label=label,
                     )
                 except harness.OpencodeError as err:
                     # opencode itself failed, so this is an error (exit 2), not a graded FAIL.

@@ -166,6 +166,32 @@ class ExportError(Exception):
     """@brief Raised when a session export cannot be fetched or parsed. The message says why."""
 
 
+class GitError(Exception):
+    """@brief Raised when git cannot report on a skill's files. The message says why."""
+
+
+def skill_is_dirty(root, skill):
+    """@brief Say whether a skill has uncommitted changes, including untracked files.
+
+    Covers the same files as skill_hash(): `SKILL.md` and the fixtures. Edits to the cases file are not counted.
+
+    @param root Repo root, where git runs.
+    @param skill The skill path, e.g. `engineering/tdd`.
+    @return True if `git status` lists anything in those files.
+    @throws GitError If git fails, e.g. the root is not a repo.
+    """
+    paths = [f"{skill}/SKILL.md", f"{skill}/evals/fixtures"]
+    result = subprocess.run(
+        ["git", "status", "--porcelain", "--", *paths],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise GitError(result.stderr.strip() or f"git status failed for {skill}")
+    return bool(result.stdout.strip())
+
+
 def run_opencode(prompt, model, cwd=None):
     """@brief Run one prompt through `opencode run` and return its JSONL events.
 
@@ -363,6 +389,7 @@ def build_record(
     skill_hash=None,
     n=None,
     export_error=None,
+    label=None,
 ):
     """@brief Turn one opencode run into the stored result record.
 
@@ -380,6 +407,7 @@ def build_record(
     @param skill_hash The hash from skill_hash() at run time, or None if not known.
     @param n The `runs` value from the config this run was part of, or None if not known.
     @param export_error The message from the failed session export, or None if the export worked.
+    @param label `working-tree` for a run of uncommitted edits, or None for a clean run.
     @return The result record dict, ready for write_result().
     """
     # Pull out the reply text and the skills that loaded.
@@ -406,6 +434,8 @@ def build_record(
         "cost": usage["cost"],
         "tokens": usage["tokens"],
         "export_error": export_error,
+        # Set only for runs of uncommitted edits, which are never treated as versions.
+        "label": label,
         "prompt": case["prompt"],
         "output": parsed["output"],
         "skills_loaded": parsed["skills_loaded"],
