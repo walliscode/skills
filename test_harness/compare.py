@@ -101,3 +101,15 @@ def format_timelines(timelines):
             lines.append(f"  {index:>3} {bar:<{BAR_WIDTH}} {outcome}")
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)
+
+
+def comparison_text(results_dir):
+    """@brief Build the with and without arm comparison, then each group's runs in time order.
+
+    @param results_dir Folder of result JSON files.
+    @return `(text, skipped)`: the formatted comparison and timelines, and how many older results were left out.
+    """
+    runs = report.load_records(results_dir)
+    _, skipped = report.split_current(runs)
+    comparisons = arm_comparisons(report.summarize(runs))
+    return f"{format_arm_comparison(comparisons)}\n\n{format_timelines(run_timelines(runs))}", skipped
