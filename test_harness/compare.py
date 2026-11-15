@@ -13,12 +13,23 @@ BAR_WIDTH = 20
 def arm_comparisons(groups):
     """@brief Pair each skill, case and model's with group with its without group.
 
+    Legacy groups pair only with legacy groups, so old runs are never compared with new ones.
+    A pair is inconclusive when either arm is missing or has fewer than `report.MIN_RUNS` runs.
+
     @param groups Group dicts from report.summarize().
-    @return List of dicts with `skill`, `case`, `model`, `with` and `without`, where a missing arm is None.
+    @return List of dicts with `skill`, `case`, `model`, `with`, `without`, `legacy` and `inconclusive`,
+            where a missing arm is None.
     """
     paired = {}
     for group in groups:
-        key = (group["skill"], group["case"], group["model"], group["skill_hash"], group["label"] or "")
+        key = (
+            group["skill"],
+            group["case"],
+            group["model"],
+            group["skill_hash"],
+            group["label"] or "",
+            group["legacy"],
+        )
         paired.setdefault(
             key,
             {
@@ -27,16 +38,21 @@ def arm_comparisons(groups):
                 "model": key[2],
                 "skill_hash": key[3],
                 "label": key[4] or None,
+                "legacy": key[5],
                 "with": None,
                 "without": None,
             },
         )
         paired[key][group["arm"]] = group
-    return [paired[key] for key in sorted(paired)]
+    comparisons = [paired[key] for key in sorted(paired)]
+    for item in comparisons:
+        arms = [item["with"], item["without"]]
+        item["inconclusive"] = any(arm is None or arm["runs"] < report.MIN_RUNS for arm in arms)
+    return comparisons
 
 
 def _arm_text(name, group):
-    """@brief Describe one arm's pass count, or say it has no runs.
+    """@brief Describe one arm's pass count and interval, or say it has no runs.
 
     @param name `with` or `without`.
     @param group The group dict for that arm, or None.
@@ -44,13 +60,17 @@ def _arm_text(name, group):
     """
     if group is None:
         return f"{name}: no runs"
-    return f"{name} {group['passes']}/{group['runs']} ({group['pass_rate'] * 100:.1f}%)"
+    return (
+        f"{name} {group['passes']}/{group['runs']} ({group['pass_rate'] * 100:.1f}%)"
+        f" {report.interval_text(group['interval'])}"
+    )
 
 
 def format_arm_comparison(comparisons):
     """@brief Turn the arm pairs into the text the compare command prints.
 
     The delta is with minus without, in percentage points. It is left out when either arm has no runs.
+    An inconclusive pair is marked, since its difference could be noise.
 
     @param comparisons List of pairs from arm_comparisons().
     @return The text, one line pair per skill, case and model.
@@ -61,8 +81,10 @@ def format_arm_comparison(comparisons):
         if item["with"] is not None and item["without"] is not None:
             delta = (item["with"]["pass_rate"] - item["without"]["pass_rate"]) * 100
             line += f"  delta {delta:+.1f} pts"
+        if item["inconclusive"]:
+            line += f"  inconclusive: fewer than {report.MIN_RUNS} runs in an arm"
         header = f"{item['skill']} {item['case']} {item['model']} hash {item['skill_hash'][:8]}"
-        blocks.append(f"{header}{report.label_suffix(item['label'])}\n{line}")
+        blocks.append(f"{header}{report.label_suffix(item['label'])}{report.legacy_suffix(item['legacy'])}\n{line}")
     return "\n\n".join(blocks)
 
 
@@ -72,7 +94,7 @@ def run_timelines(runs):
     Runs are ordered by their file name, which starts with the UTC timestamp.
 
     @param runs List of `(run_id, record)` pairs from report.load_records().
-    @return Dict of `(skill, case, model, arm, skill_hash, label)` to a list of `(run_id, passed)` in time order.
+    @return Dict of `(skill, case, model, arm, skill_hash, label, legacy)` to a list of `(run_id, passed)` in time order.
     """
     timelines = {}
     for run_id, record in sorted(runs):
@@ -92,9 +114,9 @@ def format_timelines(timelines):
     @return One block per group: a header line (with the `working-tree` marker where it applies), then a line per run with its bar and outcome.
     """
     blocks = []
-    for (skill, case, model, arm, skill_hash, label), runs in sorted(timelines.items()):
+    for (skill, case, model, arm, skill_hash, label, legacy), runs in sorted(timelines.items()):
         passes = sum(1 for _, passed in runs if passed)
-        header = f"{skill} {case} {model} ({arm}) hash {skill_hash[:8]}{report.label_suffix(label)}"
+        header = f"{skill} {case} {model} ({arm}) hash {skill_hash[:8]}{report.label_suffix(label)}{report.legacy_suffix(legacy)}"
         lines = [f"{header} ({passes}/{len(runs)})"]
         for index, (_, passed) in enumerate(runs, start=1):
             bar = "█" * BAR_WIDTH if passed else ""

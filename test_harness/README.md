@@ -98,7 +98,11 @@ python -m test_harness report
 
 Prints, for each skill, case, model, and arm: pass count and rate, pass variance, cost per run, cost per passing run, checks passed, rubric verdicts, and the failing run IDs. Cost per passing run is `null` when nothing passed, and also when a run has no recorded cost.
 
+Each group also shows a 95% Wilson score interval for its pass rate: the range the true rate could plausibly be, given the runs so far. It is wide with few runs and narrows as runs are added.
+
 Groups of runs of uncommitted edits show a `[working-tree]` marker in the report and compare output. They never share a group with committed runs.
+
+Records written before the run count (`n`) was stored are marked `[legacy]`. They never share a group with new runs.
 
 ### Compare
 
@@ -106,7 +110,7 @@ Groups of runs of uncommitted edits show a `[working-tree]` marker in the report
 python -m test_harness compare
 ```
 
-Prints the with and without arms side by side for each skill, case, and model, with the pass-rate difference in points. Then it draws each group's runs over time as a bar chart: one bar per run in time order, full for a pass and empty for a fail, followed by `P` or `F`.
+Prints the with and without arms side by side for each skill, case, and model, with the pass-rate difference in points and each arm's interval. A pair is marked `inconclusive` when either arm has fewer than 5 runs, since the difference could be noise. Then it draws each group's runs over time as a bar chart: one bar per run in time order, full for a pass and empty for a fail, followed by `P` or `F`.
 
 ### Progress preview
 

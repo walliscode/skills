@@ -24,6 +24,10 @@ _Avoid_: Trial, attempt
 The runs that share a skill, case, model, arm, skill hash, and label (`working-tree` or none). Runs of uncommitted edits never share a group with committed runs. N is the number of runs per group, so changing N adds runs to the group rather than starting a new one. Results are reported per group as k/N.
 _Avoid_: Batch, set
 
+**Legacy run**:
+A stored run written before the run count (`n`) was recorded. Legacy runs are marked in reports and never share a group or a comparison with new runs.
+_Avoid_: Old run, v0
+
 **Skill hash**:
 A content hash of a skill's `SKILL.md` and fixtures. Editing a skill starts a new run group.
 
