@@ -1,5 +1,5 @@
 """@file cli.py
-@brief Command-line entry point: `python -m test_harness [<module>/<skill>] [--case <id>] -m <model>`.
+@brief Command-line entry point: `python -m test_harness [--skill <module>/<skill>] [--case <id>] -m <model>`.
 """
 
 # Standard library: command-line parsing, printing errors.
@@ -100,7 +100,7 @@ def main(argv=None):
     N comes from the harness config `runs`. Each run uses a fresh workspace built
     from the case's fixtures. The "with" arm runs first, then the "without" arm.
 
-    With no skill argument every skill under the current directory runs. Without
+    With no `--skill` every skill in the repo runs. Without
     `--case` every case of each selected skill runs.
 
     `report` as the first argument prints derived stats from the stored results instead.
@@ -109,7 +109,7 @@ def main(argv=None):
     Exit codes: 0 if every "with" run passes, 1 if any "with" run fails, 2 for usage or opencode errors.
     A run that errors stops the loop, so earlier runs may already have written results.
     A session export that fails is recorded on its run, the loop carries on, and the exit code is 2 at the end.
-    Results are written under `test_harness/results/` in the current directory.
+    Results are written under `test_harness/results/` at the repo root, found from the current directory.
 
     @param argv Argument list, or None to use sys.argv.
     @return The process exit code.
