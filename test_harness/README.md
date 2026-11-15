@@ -78,6 +78,18 @@ runs: 3                      # runs per case, per arm, per model
 - `--config` cannot be combined with `-m`, `--skill` or `--case`. `--allow-dirty` still applies.
 - The exit code follows the same rule: `1` only if a with-arm run failed. A batch with only the `without` arm exits `0` whatever the results.
 
+Run a released version of a skill, from its git tag:
+
+```bash
+python -m test_harness --skill harness-fixtures/canary-word --version 0.1 -m github-copilot/claude-haiku-5.5
+```
+
+- A version is the git tag `<skill>-v<version>`, named by the skill's folder, e.g. `canary-word-v0.1`. A missing tag exits `2`.
+- The tag is checked out into a temporary worktree and the skill is read from there, so uncommitted edits neither block the run nor change it. The worktree is removed afterwards.
+- Each record stores its `tag`. Its `skill_hash` is the hash of the tagged content.
+- `--version` needs `--skill` and `-m`, and cannot be combined with `--config`, `--skills-root` or `--allow-dirty`.
+- `--skills-root <folder>` reads the `<module>/<skill>` paths from another folder, which must be inside a git repo. Results still go to the repo's `test_harness/results`.
+
 ### Report
 
 ```bash
@@ -142,6 +154,7 @@ Each run writes `test_harness/results/<UTC timestamp>__<skill>__<case>__<arm>__<
 - `checks` (each with its `passed` flag), `rubric` (`null` if it did not run)
 - `passed`
 - `label`: `working-tree` for a run of uncommitted edits (see `--allow-dirty`), otherwise `null`
+- `tag`: the version tag the skill was read from (see `--version`), otherwise `null`
 - `session_id`, `timestamp`, `cost`, `tokens` (`input`, `output`, `cached`). These are `null` if the session export failed.
 
 Results are committed. Derived stats (pass rates, costs) are computed by `report` and `compare` from these files, not stored.

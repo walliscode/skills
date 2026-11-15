@@ -131,6 +131,39 @@ def progress_demo_command(argv):
     return 0
 
 
+def version_command(root, args):
+    """@brief Run one skill as it was released in its git tag, read from a temporary worktree.
+
+    The working tree is not read, so uncommitted edits neither block the run nor change it.
+
+    @param root Repo root that holds the tags and the results folder.
+    @param args The parsed command-line arguments, with `version` set.
+    @return The process exit code: 2 for usage, git or planning errors, otherwise as run_plan().
+    """
+    if args.config is not None or args.skills_root is not None or args.allow_dirty:
+        print("error: --version cannot be combined with --config, --skills-root or --allow-dirty", file=sys.stderr)
+        return 2
+    if args.skill is None or args.model is None:
+        print("error: --version needs --skill and -m", file=sys.stderr)
+        return 2
+    tag = harness.version_tag(args.skill, args.version)
+    try:
+        if not harness.tag_exists(root, tag):
+            print(f"error: no git tag {tag} for {args.skill}", file=sys.stderr)
+            return 2
+        run_config = harness.load_config()
+        with harness.checked_out(root, tag) as worktree:
+            # Plan against the tag's files, so the cases and models are the released ones.
+            plan = [
+                (args.skill, case, args.model)
+                for _, case in plan_runs(worktree, args.skill, args.case, args.model, run_config)
+            ]
+            return run.run_plan(root, plan, run_config, skills_root=worktree, tag=tag)
+    except (ValueError, harness.GitError) as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 2
+
+
 def main(argv=None):
     """@brief Run eval cases for one or every skill, N times under each arm, and report each result.
 
@@ -185,8 +218,21 @@ def main(argv=None):
         "--config",
         help="batch config file listing skills, models, arms and runs; runs everything it lists",
     )
+    parser.add_argument(
+        "--version",
+        help="run the skill as released in its git tag <skill>-v<version>; needs --skill and -m",
+    )
+    parser.add_argument(
+        "--skills-root",
+        help="folder the <module>/<skill> paths are read from; defaults to the repo root",
+    )
     # Read the arguments. This exits with an error message itself if one is wrong.
     args = parser.parse_args(argv)
+
+    if args.version is not None:
+        return version_command(root, args)
+
+    skills_root = root if args.skills_root is None else Path(args.skills_root).resolve()
 
     if args.config is not None:
         if args.model is not None or args.skill is not None or args.case is not None:
@@ -195,7 +241,7 @@ def main(argv=None):
         try:
             # The batch config sets the models and the run settings, so the harness config is not read.
             run_config = harness.load_batch_config(Path(args.config))
-            plan = plan_batch(root, run_config)
+            plan = plan_batch(skills_root, run_config)
         except ValueError as err:
             print(f"error: {err}", file=sys.stderr)
             return 2
@@ -207,7 +253,7 @@ def main(argv=None):
             # Check every skill, case and model up front, before any run starts.
             plan = [
                 (skill, case, args.model)
-                for skill, case in plan_runs(root, args.skill, args.case, args.model, run_config)
+                for skill, case in plan_runs(skills_root, args.skill, args.case, args.model, run_config)
             ]
         except ValueError as err:
             print(f"error: {err}", file=sys.stderr)
@@ -215,7 +261,7 @@ def main(argv=None):
 
     try:
         # Refuse skills with uncommitted edits unless asked to run them, before any run starts.
-        dirty = sorted({skill for skill, _, _ in plan if harness.skill_is_dirty(root, skill)})
+        dirty = sorted({skill for skill, _, _ in plan if harness.skill_is_dirty(skills_root, skill)})
     except harness.GitError as err:
         print(f"error: {err}", file=sys.stderr)
         return 2
@@ -226,4 +272,4 @@ def main(argv=None):
         )
         return 2
 
-    return run.run_plan(root, plan, run_config, allow_dirty=args.allow_dirty)
+    return run.run_plan(root, plan, run_config, allow_dirty=args.allow_dirty, skills_root=skills_root)
