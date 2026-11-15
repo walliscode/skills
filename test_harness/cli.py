@@ -57,6 +57,21 @@ def plan_runs(root, skill_arg, case_arg, model, config):
     return plan
 
 
+def plan_batch(root, batch):
+    """@brief Work out every (skill, case, model) run a batch config lists, and check each one is runnable.
+
+    @param root Repo root to look for skills under.
+    @param batch The loaded batch config from harness.load_batch_config().
+    @return List of `(skill, case_dict, model)` triples, in run order: skill, then model, then case.
+    @throws ValueError With a message for the user if a skill, case or model can't be run.
+    """
+    plan = []
+    for skill in batch["skills"]:
+        for model in batch["models"]:
+            plan += [(skill, case, model) for _, case in plan_runs(root, skill, None, model, batch)]
+    return plan
+
+
 def find_root(start):
     """@brief Find the repo root: the nearest folder at or above `start` that holds `opencode.json`.
 
@@ -124,6 +139,7 @@ def main(argv=None):
 
     With no `--skill` every skill in the repo runs. Without
     `--case` every case of each selected skill runs.
+    With `--config` the skills, models, arms and runs come from a committed config file instead.
 
     `report` as the first argument prints derived stats from the stored results instead.
     `compare` as the first argument prints the with and without arms side by side, then runs over time.
@@ -163,23 +179,43 @@ def main(argv=None):
     parser.add_argument(
         "-m",
         "--model",
-        required=True,
-        help="provider/model passed to opencode -m; must be in the config list or the case's models",
+        help="provider/model passed to opencode -m; must be in the config list or the case's models. Required unless --config is given",
     )
-    # Read the arguments. This exits with an error message itself if one is missing.
+    parser.add_argument(
+        "--config",
+        help="batch config file listing skills, models, arms and runs; runs everything it lists",
+    )
+    # Read the arguments. This exits with an error message itself if one is wrong.
     args = parser.parse_args(argv)
 
-    config = harness.load_config()
-    try:
-        # Check every skill, case and model up front, before any run starts.
-        plan = plan_runs(root, args.skill, args.case, args.model, config)
-    except ValueError as err:
-        print(f"error: {err}", file=sys.stderr)
-        return 2
+    if args.config is not None:
+        if args.model is not None or args.skill is not None or args.case is not None:
+            print("error: --config cannot be combined with -m, --skill or --case", file=sys.stderr)
+            return 2
+        try:
+            # The batch config sets the models and the run settings, so the harness config is not read.
+            run_config = harness.load_batch_config(Path(args.config))
+            plan = plan_batch(root, run_config)
+        except ValueError as err:
+            print(f"error: {err}", file=sys.stderr)
+            return 2
+    else:
+        if args.model is None:
+            parser.error("-m/--model is required unless --config is given")
+        run_config = harness.load_config()
+        try:
+            # Check every skill, case and model up front, before any run starts.
+            plan = [
+                (skill, case, args.model)
+                for skill, case in plan_runs(root, args.skill, args.case, args.model, run_config)
+            ]
+        except ValueError as err:
+            print(f"error: {err}", file=sys.stderr)
+            return 2
 
     try:
         # Refuse skills with uncommitted edits unless asked to run them, before any run starts.
-        dirty = sorted({skill for skill, _ in plan if harness.skill_is_dirty(root, skill)})
+        dirty = sorted({skill for skill, _, _ in plan if harness.skill_is_dirty(root, skill)})
     except harness.GitError as err:
         print(f"error: {err}", file=sys.stderr)
         return 2
@@ -190,4 +226,4 @@ def main(argv=None):
         )
         return 2
 
-    return run.run_plan(root, plan, args.model, config, allow_dirty=args.allow_dirty)
+    return run.run_plan(root, plan, run_config, allow_dirty=args.allow_dirty)

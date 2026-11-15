@@ -56,6 +56,28 @@ python -m test_harness --skill harness-fixtures/canary-word --case reports-canar
 - A skill folder with uncommitted changes (edits or untracked files) is refused, exit `2`, before any run starts. Pass `--allow-dirty` to run it anyway; its records are labelled `working-tree` and are never treated as a version.
 - Exit codes: `0` if every with-arm run passed, `1` if any failed, `2` for usage or opencode errors. An opencode error stops the batch, and earlier results are kept.
 
+Run a batch from a committed config file, instead of `-m` and the filters:
+
+```bash
+python -m test_harness --config test_harness/configs/batch.yaml
+```
+
+```yaml
+skills:                      # <module>/<skill>, relative to the repo root
+  - harness-fixtures/canary-word
+models:                      # each case must allow the model, as with -m
+  - github-copilot/claude-haiku-5.5
+arms:                        # optional; defaults to both arms
+  - with
+  - without
+runs: 3                      # runs per case, per arm, per model
+```
+
+- Every listed skill, model, case and arm runs, in that order. Checks run before any model call, so a bad skill, model or config fails with exit `2` and nothing is recorded.
+- A missing or invalid field is reported by name, with exit `2`.
+- `--config` cannot be combined with `-m`, `--skill` or `--case`. `--allow-dirty` still applies.
+- The exit code follows the same rule: `1` only if a with-arm run failed. A batch with only the `without` arm exits `0` whatever the results.
+
 ### Report
 
 ```bash

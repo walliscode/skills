@@ -8,34 +8,34 @@ import sys
 
 from test_harness import harness, progress
 
-# The two arms every case runs under, in order: skill available, then skill denied.
+# The two arms, in order: skill available, then skill denied.
 ARMS = ("with", "without")
 
 
-def run_plan(root, plan, model, config, allow_dirty=False):
-    """@brief Run every planned case under both arms, `runs` times each, and write one result per run.
+def run_plan(root, plan, config, allow_dirty=False):
+    """@brief Run every planned case under each arm, `runs` times each, and write one result per run.
 
     Stops at the first opencode error, keeping the results already written.
 
     @param root Repo root that holds the skill folders and the results folder.
-    @param plan List of `(skill, case_dict)` pairs, in run order, from the CLI planner.
-    @param model The `provider/model` string passed to opencode.
-    @param config The loaded harness config.
+    @param plan List of `(skill, case_dict, model)` triples, in run order, from the CLI planner.
+    @param config The run settings: `runs` (int), and `arms` (optional list, default both arms, in run order).
     @param allow_dirty True to run skills with uncommitted edits; their records are labelled `working-tree`.
     @return The process exit code: 0 if every "with" run passed, 1 if any failed, 2 for opencode or export errors.
     """
-    # Sent verbatim. Both arms run for every case: "with" leaves the skill
+    arms = config.get("arms", ARMS)
+    # Sent verbatim. Each arm runs for every case: "with" leaves the skill
     # available, "without" denies it. Only the "with" arm decides the exit code,
     # since "without" is the baseline and is expected to fail the checks.
     # Starts as passing and is turned off by any failing "with" run.
     all_passed = True
     # Starts as clear and is turned on by any run whose session export failed.
     export_failed = False
-    bar = progress.Progress(len(plan) * len(ARMS) * config["runs"])
-    for skill, case in plan:
+    bar = progress.Progress(len(plan) * len(arms) * config["runs"])
+    for skill, case, model in plan:
         skill_hash = harness.skill_hash(root / skill)
         label = "working-tree" if allow_dirty and harness.skill_is_dirty(root, skill) else None
-        for arm in ARMS:
+        for arm in arms:
             # Repeat each arm N times, from the config's `runs` value.
             for _ in range(config["runs"]):
                 bar.start(skill=skill, model=model)
