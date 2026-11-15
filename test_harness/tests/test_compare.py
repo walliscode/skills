@@ -134,6 +134,7 @@ def test_compare_command_prints_both_sections(tmp_path, monkeypatch, capsys):
 
     results = tmp_path / "test_harness" / "results"
     results.mkdir(parents=True)
+    (tmp_path / "opencode.json").write_text("{}")
     (results / "20261018T100000Z__a.json").write_text(json.dumps(record(passed=True, arm="with")))
     monkeypatch.chdir(tmp_path)
 

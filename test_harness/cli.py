@@ -56,6 +56,18 @@ def plan_runs(root, skill_arg, case_arg, model, config):
     return plan
 
 
+def find_root(start):
+    """@brief Find the repo root: the nearest folder at or above `start` that holds `opencode.json`.
+
+    @param start Folder to search up from.
+    @return The repo root path, or None if no folder above `start` has `opencode.json`.
+    """
+    for folder in [start, *start.parents]:
+        if (folder / "opencode.json").is_file():
+            return folder
+    return None
+
+
 def report_command(results_dir):
     """@brief Print the derived stats for every stored run.
 
@@ -103,15 +115,20 @@ def main(argv=None):
     @return The process exit code.
     """
     args_list = sys.argv[1:] if argv is None else argv
+    # Work from the repo root, found from the current directory, so any folder inside the repo works.
+    root = find_root(Path.cwd())
+    if root is None:
+        print("error: no opencode.json found in this folder or any folder above it", file=sys.stderr)
+        return 2
     if args_list[:1] == ["report"]:
-        return report_command(Path.cwd() / "test_harness" / "results")
+        return report_command(root / "test_harness" / "results")
     if args_list[:1] == ["compare"]:
-        return compare_command(Path.cwd() / "test_harness" / "results")
+        return compare_command(root / "test_harness" / "results")
 
-    # Describe the command-line arguments: an optional skill path, an optional case id, and the model.
+    # Describe the command-line arguments: optional skill, case and model filters.
     parser = argparse.ArgumentParser(prog="test_harness")
     parser.add_argument(
-        "skill", nargs="?", help="<module>/<skill>, e.g. engineering/tdd; omit to run every skill"
+        "--skill", help="<module>/<skill>, e.g. engineering/tdd; omit to run every skill"
     )
     parser.add_argument("--case", help="case id from the skill's evals/evals.yaml; omit to run every case")
     parser.add_argument(
@@ -123,8 +140,6 @@ def main(argv=None):
     # Read the arguments. This exits with an error message itself if one is missing.
     args = parser.parse_args(argv)
 
-    # Work from the current directory, which is where the skill folders live.
-    root = Path.cwd()
     config = harness.load_config()
     try:
         # Check every skill, case and model up front, before any run starts.

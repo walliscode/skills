@@ -61,7 +61,18 @@ def test_skill_argument_runs_only_that_skill(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     fake_opencode(monkeypatch)
 
-    assert cli.main(["tools/alpha", "-m", MODEL]) == 0
+    assert cli.main(["--skill", "tools/alpha", "-m", MODEL]) == 0
+    assert results_skills(tmp_path) == ["tools/alpha"]
+
+
+def test_run_from_a_subdirectory_finds_the_repo_root(tmp_path, monkeypatch):
+    make_project(tmp_path)
+    make_skill(tmp_path, "tools/alpha", "a1")
+    (tmp_path / "tools" / "alpha" / "subdir").mkdir()
+    monkeypatch.chdir(tmp_path / "tools" / "alpha" / "subdir")
+    fake_opencode(monkeypatch)
+
+    assert cli.main(["--skill", "tools/alpha", "-m", MODEL]) == 0
     assert results_skills(tmp_path) == ["tools/alpha"]
 
 

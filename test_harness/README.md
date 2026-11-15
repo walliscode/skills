@@ -6,7 +6,6 @@ The harness runs a skill's eval cases through the `opencode` CLI and records whe
 
 - `opencode` on your `PATH`, with the models you want to use configured.
 - Python dependencies from `test_harness/requirements.txt` (`pyyaml`, plus `pytest` and `pyright` if you run the tests).
-- Run every command from the repo root, since skills are found under the current directory.
 
 ## Concepts
 
@@ -47,12 +46,13 @@ Starting files for a case go in `<skill>/evals/fixtures/<case-id>/`. They are co
 
 ```bash
 python -m test_harness -m github-copilot/claude-haiku-5.5                      # every skill, every case
-python -m test_harness harness-fixtures/canary-word -m github-copilot/claude-haiku-5.5
-python -m test_harness harness-fixtures/canary-word --case reports-canary-word -m github-copilot/claude-haiku-5.5
+python -m test_harness --skill harness-fixtures/canary-word -m github-copilot/claude-haiku-5.5
+python -m test_harness --skill harness-fixtures/canary-word --case reports-canary-word -m github-copilot/claude-haiku-5.5
 ```
 
 - `-m` is required. The model must be in `config.yaml` or in the case's `models`.
-- Each run writes one JSON file to `test_harness/results/`.
+- Each run writes one JSON file to `test_harness/results/` at the repo root. Records are committed.
+- Run from any folder inside the repo: the repo root is the nearest folder with `opencode.json`.
 - Exit codes: `0` if every with-arm run passed, `1` if any failed, `2` for usage or opencode errors. An opencode error stops the batch, and earlier results are kept.
 
 ### Report
@@ -76,8 +76,8 @@ Prints the with and without arms side by side for each skill, case, and model, w
 ```mermaid
 flowchart TD
     start{What do you want to do?}
-    start -->|Check a skill works| run1[Run one case<br/>python -m test_harness skill --case id -m model]
-    start -->|Measure a skill across all its cases| run2[Run the skill<br/>python -m test_harness skill -m model]
+    start -->|Check a skill works| run1[Run one case<br/>python -m test_harness --skill skill --case id -m model]
+    start -->|Measure a skill across all its cases| run2[Run the skill<br/>python -m test_harness --skill skill -m model]
     start -->|Get pass rates and cost| report[python -m test_harness report]
     start -->|See if the skill helps| compare[python -m test_harness compare]
     start -->|Check a new or changed skill| add[Add cases to evals/evals.yaml]
