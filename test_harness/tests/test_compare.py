@@ -80,7 +80,7 @@ def test_run_timelines_order_runs_by_their_file_name_stamp():
 
     timelines = compare.run_timelines(runs)
 
-    assert timelines[("s/canary", "c", "m", "with", "h1", "")] == [
+    assert timelines[("s/canary", "c", "m", "with", "h1", "", False)] == [
         ("20261018T100000Z__a", True),
         ("20261019T100000Z__b", False),
     ]
