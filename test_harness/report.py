@@ -9,6 +9,16 @@ import json
 from pathlib import Path
 
 
+def summary_text(results_dir):
+    """@brief Build the report text for every stored run.
+
+    @param results_dir Folder of result JSON files.
+    @return `(text, skipped)`: the formatted report, and how many older results were left out.
+    """
+    runs, skipped = split_current(load_records(results_dir))
+    return format_report(summarize(runs)), skipped
+
+
 def load_records(results_dir):
     """@brief Read every result file in a folder.
 
