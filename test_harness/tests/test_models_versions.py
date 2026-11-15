@@ -101,7 +101,7 @@ def test_version_comparison_pairs_the_same_case_and_model_in_time_order():
     old = [record(skill_hash="old", timestamp="2026-01-01T00:00:00+00:00", passed=False)] * 5
     new = [record(skill_hash="new", timestamp="2026-02-01T00:00:00+00:00", passed=True)] * 5
 
-    [item] = compare.version_comparisons(report.summarize(runs(*old, *new)))
+    [item] = compare.hash_comparisons(report.summarize(runs(*old, *new)))
 
     assert (item["from"]["skill_hash"], item["to"]["skill_hash"]) == ("old", "new")
     assert item["delta"] == 100.0
@@ -112,7 +112,7 @@ def test_version_comparison_is_inconclusive_with_fewer_than_five_runs():
     old = [record(skill_hash="old", timestamp="2026-01-01T00:00:00+00:00", passed=True)] * 3
     new = [record(skill_hash="new", timestamp="2026-02-01T00:00:00+00:00", passed=True)] * 5
 
-    [item] = compare.version_comparisons(report.summarize(runs(*old, *new)))
+    [item] = compare.hash_comparisons(report.summarize(runs(*old, *new)))
 
     assert item["inconclusive"] is True
 
@@ -122,13 +122,13 @@ def test_version_comparison_does_not_pair_legacy_with_new_runs():
     legacy.pop("n")
     new = record(skill_hash="new", timestamp="2026-02-01T00:00:00+00:00")
 
-    assert compare.version_comparisons(report.summarize(runs(legacy, new))) == []
+    assert compare.hash_comparisons(report.summarize(runs(legacy, new))) == []
 
 
 def test_version_comparison_text_shows_the_difference_and_interval():
     old = [record(skill_hash="old", timestamp="2026-01-01T00:00:00+00:00", passed=False)] * 5
     new = [record(skill_hash="new", timestamp="2026-02-01T00:00:00+00:00", passed=True)] * 5
 
-    text = compare.format_version_comparison(compare.version_comparisons(report.summarize(runs(*old, *new))))
+    text = compare.format_hash_comparison(compare.hash_comparisons(report.summarize(runs(*old, *new))))
 
     assert "delta +100.0 pts" in text

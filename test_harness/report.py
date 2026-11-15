@@ -206,7 +206,7 @@ def _summarize_group(key, members):
         "passes": passes,
         "pass_rate": pass_rate,
         "interval": wilson_interval(passes, runs),
-        "first_run": min(record.get("timestamp", "") for _, record in members),
+        "first_timestamp": min(record.get("timestamp", "") for _, record in members),
         "pass_variance": pass_variance,
         "cost_per_run": cost_per_run,
         "cost_per_passing_run": cost_per_passing_run,
@@ -228,8 +228,8 @@ def _money(value):
 def model_table(groups):
     """@brief Total the with-arm runs of each model for each skill, across its cases.
 
-    Rows are kept apart by skill version (skill hash, label and legacy status), so versions are never mixed.
-    Within a skill version they are sorted by pass rate, best first.
+    Rows are kept apart by skill hash, label and legacy status, so different skill content is never mixed.
+    Within a skill hash they are sorted by pass rate, best first.
 
     @param groups Group dicts from summarize().
     @return List of row dicts with `skill`, `skill_hash`, `label`, `legacy`, `model`, `cases` (groups
@@ -265,11 +265,14 @@ def model_table(groups):
                 "cost_per_passing_run": None if spend is None or passes == 0 else spend / passes,
             }
         )
-    return sorted(rows, key=lambda row: (row["skill"], row["skill_hash"], row["label"] or "", row["legacy"], -row["pass_rate"], row["model"]))
+    return sorted(
+        rows,
+        key=lambda row: (row["skill"], row["skill_hash"], row["label"] or "", row["legacy"], -row["pass_rate"], row["model"]),
+    )
 
 
 def format_model_table(rows):
-    """@brief Turn the model table rows into text, one block per skill version.
+    """@brief Turn the model table rows into text, one block per skill hash.
 
     @param rows List of rows from model_table().
     @return The text, or an empty string when there are no rows.

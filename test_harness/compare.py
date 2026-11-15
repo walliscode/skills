@@ -51,15 +51,15 @@ def arm_comparisons(groups):
     return comparisons
 
 
-def version_comparisons(groups):
-    """@brief Pair each skill version with the next one, for the same case and model, with-arm runs only.
+def hash_comparisons(groups):
+    """@brief Pair each skill hash with the next one, for the same case and model, with-arm runs only.
 
-    Versions are ordered by when their first run happened. A legacy version is only paired with another legacy version.
+    Hashes are ordered by when their first run happened. A legacy hash is only paired with another legacy hash.
 
     @param groups Group dicts from report.summarize().
     @return List of dicts with `skill`, `case`, `model`, `label`, `legacy`, `from` and `to` (the earlier and later
             group dicts), `delta` (later minus earlier, in points), `interval` (the difference's 95% interval in
-            points, or None) and `inconclusive` (True when either version has fewer than `report.MIN_RUNS` runs).
+            points, or None) and `inconclusive` (True when either skill hash has fewer than `report.MIN_RUNS` runs).
     """
     series = {}
     for group in groups:
@@ -70,7 +70,7 @@ def version_comparisons(groups):
 
     comparisons = []
     for key in sorted(series):
-        versions = sorted(series[key], key=lambda group: group["first_run"])
+        versions = sorted(series[key], key=lambda group: group["first_timestamp"])
         for earlier, later in zip(versions, versions[1:]):
             interval = report.difference_interval(later["passes"], later["runs"], earlier["passes"], earlier["runs"])
             comparisons.append(
@@ -90,10 +90,10 @@ def version_comparisons(groups):
     return comparisons
 
 
-def format_version_comparison(comparisons):
-    """@brief Turn the version pairs into text, one block per pair.
+def format_hash_comparison(comparisons):
+    """@brief Turn the skill hash pairs into text, one block per pair.
 
-    @param comparisons List of pairs from version_comparisons().
+    @param comparisons List of pairs from hash_comparisons().
     @return The text, or an empty string when there are no pairs.
     """
     blocks = []
@@ -109,7 +109,7 @@ def format_version_comparison(comparisons):
             low, high = item["interval"]
             line += f"  95% interval of difference {low:+.1f} to {high:+.1f} pts"
         if item["inconclusive"]:
-            line += f"  inconclusive: fewer than {report.MIN_RUNS} runs in a version"
+            line += f"  inconclusive: fewer than {report.MIN_RUNS} runs in a skill hash"
         blocks.append(f"{header}{report.label_suffix(item['label'])}{report.legacy_suffix(item['legacy'])}\n{line}")
     return "\n\n".join(blocks)
 
@@ -200,5 +200,5 @@ def comparison_text(results_dir):
     comparisons = arm_comparisons(groups)
     return (
         f"{format_arm_comparison(comparisons)}\n\n{format_timelines(run_timelines(runs))}"
-        f"\n\nVersions\n\n{format_version_comparison(version_comparisons(groups))}"
+        f"\n\nSkill hash changes\n\n{format_hash_comparison(hash_comparisons(groups))}"
     )

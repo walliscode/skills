@@ -104,7 +104,7 @@ Groups of runs of uncommitted edits show a `[working-tree]` marker in the report
 
 Records written before the run count (`n`) was stored are marked `[legacy]`. They never share a group with new runs.
 
-After the groups, `report` prints **Models per skill**: for each skill version, one row per model with its with-arm pass rate totalled across all the skill's cases, its interval, and its cost per passing run. Rows are sorted best first, so the candidates for a skill read top to bottom.
+After the groups, `report` prints **Models per skill**: for each skill hash (the content of its SKILL.md and fixtures), one row per model with its with-arm pass rate totalled across all the skill's cases, its interval, and its cost per passing run. Rows are sorted best first, so the candidates for a skill read top to bottom.
 
 ### Compare
 
@@ -114,7 +114,7 @@ python -m test_harness compare
 
 Prints the with and without arms side by side for each skill, case, and model, with the pass-rate difference in points and each arm's interval. A pair is marked `inconclusive` when either arm has fewer than 5 runs, since the difference could be noise. Then it draws each group's runs over time as a bar chart: one bar per run in time order, full for a pass and empty for a fail, followed by `P` or `F`.
 
-Then it lists **Versions**: for each skill, case and model, each skill version's with-arm pass rate paired with the next version's, in the order they first ran. It shows the change in points, the 95% interval of that change, and `inconclusive` when either version has fewer than 5 runs. Versions of legacy records are only paired with other legacy versions.
+Then it lists **Skill hash changes**: for each skill, case and model, each skill hash's with-arm pass rate paired with the next one's, in the order they first ran. It shows the change in points, the 95% interval of that change, and `inconclusive` when either side has fewer than 5 runs. Legacy records are only paired with other legacy records.
 
 ### Progress preview
 
