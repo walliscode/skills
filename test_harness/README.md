@@ -76,6 +76,7 @@ Prints the with and without arms side by side for each skill, case, and model, w
 ```bash
 python -m test_harness progress-demo                  # 12 fake runs, 0.3 s apart
 python -m test_harness progress-demo --runs 30 --delay 0.1
+make progress-demo DEMO_ARGS="--runs 30 --delay 0.1"   # same, from the Makefile
 ```
 
 Plays a fake batch through the progress display, so you can try its look without calling any model. A terminal gets one live bar, with completed run lines above it. Output piped to a file gets one line per completed run and no bar.
