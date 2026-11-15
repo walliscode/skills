@@ -53,6 +53,7 @@ python -m test_harness --skill harness-fixtures/canary-word --case reports-canar
 - `-m` is required. The model must be in `config.yaml` or in the case's `models`.
 - Each run writes one JSON file to `test_harness/results/` at the repo root. Records are committed.
 - Run from any folder inside the repo: the repo root is the nearest folder with `opencode.json`. `report` and `compare` use the same root and exit `2` outside a repo.
+- A skill folder with uncommitted changes (edits or untracked files) is refused, exit `2`, before any run starts. Pass `--allow-dirty` to run it anyway; its records are labelled `working-tree` and are never treated as a version.
 - Exit codes: `0` if every with-arm run passed, `1` if any failed, `2` for usage or opencode errors. An opencode error stops the batch, and earlier results are kept.
 
 ### Report

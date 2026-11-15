@@ -1,10 +1,17 @@
 import json
+import subprocess
 
 import yaml
 
 from test_harness import cli, harness
 
 MODEL = "github-copilot/claude-haiku-5.5"
+
+
+def init_repo(root):
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init"], cwd=root, check=True)
 
 
 def make_skill(root, skill, case_id):
@@ -47,6 +54,7 @@ def test_no_skill_argument_runs_every_skill(tmp_path, monkeypatch):
     make_project(tmp_path)
     make_skill(tmp_path, "tools/alpha", "a1")
     make_skill(tmp_path, "tools/beta", "b1")
+    init_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
     fake_opencode(monkeypatch)
 
@@ -58,6 +66,7 @@ def test_skill_argument_runs_only_that_skill(tmp_path, monkeypatch):
     make_project(tmp_path)
     make_skill(tmp_path, "tools/alpha", "a1")
     make_skill(tmp_path, "tools/beta", "b1")
+    init_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
     fake_opencode(monkeypatch)
 
@@ -69,6 +78,7 @@ def test_run_from_a_subdirectory_finds_the_repo_root(tmp_path, monkeypatch):
     make_project(tmp_path)
     make_skill(tmp_path, "tools/alpha", "a1")
     (tmp_path / "tools" / "alpha" / "subdir").mkdir()
+    init_repo(tmp_path)
     monkeypatch.chdir(tmp_path / "tools" / "alpha" / "subdir")
     fake_opencode(monkeypatch)
 
@@ -80,6 +90,7 @@ def test_case_without_skill_runs_only_skills_that_have_it(tmp_path, monkeypatch)
     make_project(tmp_path)
     make_skill(tmp_path, "tools/alpha", "a1")
     make_skill(tmp_path, "tools/beta", "b1")
+    init_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
     fake_opencode(monkeypatch)
 

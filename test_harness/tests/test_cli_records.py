@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 import yaml
 
@@ -7,12 +8,19 @@ from test_harness import cli, harness
 MODEL = "github-copilot/claude-haiku-5.5"
 
 
+def init_repo(root):
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init"], cwd=root, check=True)
+
+
 def test_cli_stores_skill_hash_and_n_in_every_run_record(tmp_path, monkeypatch):
     skill_dir = tmp_path / "mod" / "skl"
     (skill_dir / "evals").mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text("# skill\n")
     (skill_dir / "evals" / "evals.yaml").write_text(yaml.safe_dump([{"id": "c", "prompt": "p", "checks": []}]))
     (tmp_path / "opencode.json").write_text("{}")
+    init_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(harness, "load_config", lambda path=None: {"models": [MODEL], "runs": 2})
     monkeypatch.setattr(
@@ -33,6 +41,7 @@ def test_cli_records_failed_export_and_keeps_running_the_batch(tmp_path, monkeyp
     (skill_dir / "SKILL.md").write_text("# skill\n")
     (skill_dir / "evals" / "evals.yaml").write_text(yaml.safe_dump([{"id": "c", "prompt": "p", "checks": []}]))
     (tmp_path / "opencode.json").write_text("{}")
+    init_repo(tmp_path)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(harness, "load_config", lambda path=None: {"models": [MODEL], "runs": 3})
     monkeypatch.setattr(

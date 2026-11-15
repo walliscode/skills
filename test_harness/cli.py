@@ -156,6 +156,11 @@ def main(argv=None):
     )
     parser.add_argument("--case", help="case id from the skill's evals/evals.yaml; omit to run every case")
     parser.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="run skills with uncommitted edits; their records are labelled working-tree",
+    )
+    parser.add_argument(
         "-m",
         "--model",
         required=True,
@@ -172,4 +177,17 @@ def main(argv=None):
         print(f"error: {err}", file=sys.stderr)
         return 2
 
-    return run.run_plan(root, plan, args.model, config)
+    try:
+        # Refuse skills with uncommitted edits unless asked to run them, before any run starts.
+        dirty = sorted({skill for skill, _ in plan if harness.skill_is_dirty(root, skill)})
+    except harness.GitError as err:
+        print(f"error: {err}", file=sys.stderr)
+        return 2
+    if dirty and not args.allow_dirty:
+        print(
+            f"error: uncommitted changes in {', '.join(dirty)}; commit them or pass --allow-dirty",
+            file=sys.stderr,
+        )
+        return 2
+
+    return run.run_plan(root, plan, args.model, config, allow_dirty=args.allow_dirty)

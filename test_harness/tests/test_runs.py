@@ -17,10 +17,17 @@ needs_opencode = pytest.mark.skipif(
 )
 
 
+def init_repo(root):
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init"], cwd=root, check=True)
+
+
 @pytest.fixture
 def project(tmp_path):
     shutil.copytree(REPO_ROOT / "harness-fixtures", tmp_path / "harness-fixtures")
     shutil.copy(REPO_ROOT / "opencode.json", tmp_path / "opencode.json")
+    init_repo(tmp_path)
     return tmp_path
 
 
