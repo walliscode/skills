@@ -12,17 +12,20 @@ from test_harness import harness, progress
 ARMS = harness.ARM_NAMES
 
 
-def run_plan(root, plan, config, allow_dirty=False):
+def run_plan(root, plan, config, allow_dirty=False, skills_root=None, tag=None):
     """@brief Run every planned case under each arm, `runs` times each, and write one result per run.
 
     Stops at the first opencode error, keeping the results already written.
 
-    @param root Repo root that holds the skill folders and the results folder.
+    @param root Repo root that holds the results folder.
     @param plan List of `(skill, case_dict, model)` triples, in run order, from the CLI planner.
     @param config The run settings: `runs` (int), and `arms` (optional list, default both arms, in run order).
     @param allow_dirty True to run skills with uncommitted edits; their records are labelled `working-tree`.
+    @param skills_root Folder the skill paths are read from, or None for `root`. A version run passes its tag's worktree.
+    @param tag The version tag the skills are read from, recorded on every run, or None.
     @return The process exit code: 0 if every "with" run passed, 1 if any failed, 2 for opencode or export errors.
     """
+    skills_root = root if skills_root is None else skills_root
     arms = config.get("arms", ARMS)
     # Sent verbatim. Each arm runs for every case: "with" leaves the skill
     # available, "without" denies it. Only the "with" arm decides the exit code,
@@ -33,14 +36,14 @@ def run_plan(root, plan, config, allow_dirty=False):
     export_failed = False
     bar = progress.Progress(len(plan) * len(arms) * config["runs"])
     for skill, case, model in plan:
-        skill_hash = harness.skill_hash(root / skill)
-        label = "working-tree" if allow_dirty and harness.skill_is_dirty(root, skill) else None
+        skill_hash = harness.skill_hash(skills_root / skill)
+        label = "working-tree" if allow_dirty and harness.skill_is_dirty(skills_root, skill) else None
         for arm in arms:
             # Repeat each arm N times, from the config's `runs` value.
             for _ in range(config["runs"]):
                 bar.start(skill=skill, model=model)
                 # A new workspace for each run, so no run sees another's files.
-                workspace = harness.make_workspace(root, skill, case["id"], arm=arm)
+                workspace = harness.make_workspace(skills_root, skill, case["id"], arm=arm)
                 try:
                     # Run the prompt in the workspace, then grade the result there.
                     events = harness.run_opencode(case["prompt"], model, cwd=workspace)
@@ -69,6 +72,7 @@ def run_plan(root, plan, config, allow_dirty=False):
                         n=config["runs"],
                         export_error=export_error,
                         label=label,
+                        tag=tag,
                     )
                 except harness.OpencodeError as err:
                     # opencode itself failed, so this is an error (exit 2), not a graded FAIL.

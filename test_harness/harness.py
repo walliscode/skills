@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -203,6 +204,63 @@ class ExportError(Exception):
 
 class GitError(Exception):
     """@brief Raised when git cannot report on a skill's files. The message says why."""
+
+
+def version_tag(skill, version):
+    """@brief Name the git tag that holds a released version of a skill.
+
+    @param skill The skill path, e.g. `engineering/tdd`. Only its folder name is used.
+    @param version The version string, e.g. `0.2`.
+    @return The tag name, e.g. `tdd-v0.2`.
+    """
+    return f"{skill.rsplit('/', 1)[-1]}-v{version}"
+
+
+def tag_exists(root, tag):
+    """@brief Say whether a git tag exists in the repo.
+
+    @param root Repo root, where git runs.
+    @param tag The tag name, e.g. `tdd-v0.2`.
+    @return True if the tag exists.
+    @throws GitError If git fails for a reason other than the tag being absent.
+    """
+    proc = subprocess.run(
+        ["git", "show-ref", "--verify", "--quiet", f"refs/tags/{tag}"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode == 1:
+        return False
+    if proc.returncode != 0:
+        raise GitError(proc.stderr.strip() or f"git show-ref failed for {tag}")
+    return True
+
+
+@contextmanager
+def checked_out(root, tag):
+    """@brief Check a git tag out into a temporary worktree, and remove the worktree afterwards.
+
+    @param root Repo root the worktree is added to.
+    @param tag The tag to check out.
+    @yield Path to the worktree, which holds the tag's files.
+    @throws GitError If the worktree cannot be created.
+    """
+    parent = Path(tempfile.mkdtemp(prefix="harness-version-"))
+    path = parent / "tree"
+    try:
+        proc = subprocess.run(
+            ["git", "worktree", "add", "--detach", str(path), tag],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            raise GitError(proc.stderr.strip() or f"git worktree add failed for {tag}")
+        yield path
+    finally:
+        subprocess.run(["git", "worktree", "remove", "--force", str(path)], cwd=root, capture_output=True)
+        shutil.rmtree(parent, ignore_errors=True)
 
 
 def skill_is_dirty(root, skill):
@@ -425,6 +483,7 @@ def build_record(
     n=None,
     export_error=None,
     label=None,
+    tag=None,
 ):
     """@brief Turn one opencode run into the stored result record.
 
@@ -443,6 +502,7 @@ def build_record(
     @param n The `runs` value from the config this run was part of, or None if not known.
     @param export_error The message from the failed session export, or None if the export worked.
     @param label `working-tree` for a run of uncommitted edits, or None for a clean run.
+    @param tag The version tag the skill was read from, e.g. `tdd-v0.2`, or None for a run of the working tree.
     @return The result record dict, ready for write_result().
     """
     # Pull out the reply text and the skills that loaded.
@@ -471,6 +531,8 @@ def build_record(
         "export_error": export_error,
         # Set only for runs of uncommitted edits, which are never treated as versions.
         "label": label,
+        # The version tag this run read its skill from, or null for a working-tree or plain run.
+        "tag": tag,
         "prompt": case["prompt"],
         "output": parsed["output"],
         "skills_loaded": parsed["skills_loaded"],
