@@ -35,6 +35,7 @@ def run_harness(project):
             sys.executable,
             "-m",
             "test_harness",
+            "--skill",
             "harness-fixtures/canary-word",
             "--case",
             "reports-canary-word",

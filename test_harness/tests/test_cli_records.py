@@ -19,7 +19,7 @@ def test_cli_stores_skill_hash_and_n_in_every_run_record(tmp_path, monkeypatch):
         harness, "run_opencode", lambda prompt, model, cwd=None: [{"type": "text", "part": {"text": "hi"}}]
     )
 
-    assert cli.main(["mod/skl", "--case", "c", "-m", MODEL]) == 0
+    assert cli.main(["--skill", "mod/skl", "--case", "c", "-m", MODEL]) == 0
 
     records = [json.loads(path.read_text()) for path in (tmp_path / "test_harness" / "results").glob("*.json")]
     assert len(records) == 4
@@ -47,7 +47,7 @@ def test_cli_records_failed_export_and_keeps_running_the_batch(tmp_path, monkeyp
 
     monkeypatch.setattr(harness, "export_session", fake_export)
 
-    assert cli.main(["mod/skl", "--case", "c", "-m", MODEL]) == 2
+    assert cli.main(["--skill", "mod/skl", "--case", "c", "-m", MODEL]) == 2
 
     records = [json.loads(path.read_text()) for path in (tmp_path / "test_harness" / "results").glob("*.json")]
     assert len(records) == 6

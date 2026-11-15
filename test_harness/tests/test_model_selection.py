@@ -29,7 +29,7 @@ def write_cases(project, cases):
 
 
 def run_harness(project, *, model=CONFIG_MODEL):
-    args = ["harness-fixtures/canary-word", "--case", "reports-canary-word"]
+    args = ["--skill", "harness-fixtures/canary-word", "--case", "reports-canary-word"]
     if model is not None:
         args += ["-m", model]
     return subprocess.run(

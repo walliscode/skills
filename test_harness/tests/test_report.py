@@ -203,6 +203,7 @@ def test_report_command_prints_the_report_from_the_results_folder(tmp_path, monk
 
     results = tmp_path / "test_harness" / "results"
     results.mkdir(parents=True)
+    (tmp_path / "opencode.json").write_text("{}")
     (results / "run-a.json").write_text(json.dumps(record(passed=True)))
     monkeypatch.chdir(tmp_path)
 
